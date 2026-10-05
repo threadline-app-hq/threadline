@@ -34,6 +34,8 @@ export const api = {
   comment: (id: number, text: string) => call<Post>('POST', `/api/posts/${id}/comments`, { text }),
   createPost: (image: string, caption: string) => call<Post>('POST', '/api/posts', { image, caption }),
   updateMe: (name: string, bio: string, avatar?: string) => call<User>('PATCH', '/api/me', { name, bio, ...(avatar ? { avatar } : {}) }),
+  stories: () => call<{ groups: StoryGroup[] }>('GET', '/api/stories'),
+  addStory: (image: string) => call<{ id: number }>('POST', '/api/stories', { image }),
   conversations: () => call<{ conversations: Convo[]; unread: number }>('GET', '/api/messages'),
   thread: (h: string) => call<{ user: Mini; messages: Msg[] }>('GET', '/api/messages/' + encodeURIComponent(h)),
   send: (h: string, text: string) => call<Msg>('POST', '/api/messages/' + encodeURIComponent(h), { text }),
@@ -46,3 +48,5 @@ export type Notif = { id: number; type: 'like' | 'comment' | 'follow'; postId: n
 
 export type Msg = { id: number; mine: boolean; text: string; created: number };
 export type Convo = { user: Mini; text: string; created: number; mine: boolean; unread: number };
+
+export type StoryGroup = { user: Mini; items: { id: number; image: string; created: number }[] };
