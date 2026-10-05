@@ -354,3 +354,5 @@ html,body{background:#f6f3ed}
 .feed-start{margin-top:24px;max-width:none}.feed-start>p{max-width:350px}.feed-start h2{font-size:18px;font-weight:500;letter-spacing:normal;margin:0 0 12px}
 
 .avatar-status{font-size:12px;line-height:1.6;color:var(--mut);margin:0}
+
+.bio-field{display:flex;flex-direction:column;gap:8px}
