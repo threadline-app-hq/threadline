@@ -14,7 +14,7 @@ const I = {
   user: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8z', close: 'M18 6L6 18M6 6l12 12', moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
   send: 'M22 2L11 13M22 2l-7 20-4-9-9-4z',
   bell: 'M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0',
-  trash: 'M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6',
+  trash: 'M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6', logout: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
 };
 const hue = (s: string) => [...s].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 360, 7);
 const ring = (_h: number) => 'var(--blue)';
@@ -209,8 +209,8 @@ export function App() {
     <a className="skip-link" href="#main-content">Skip to content</a><aside className="side"><h1 className="logo"><BrandMark />Threadline</h1>
       {nav.map(([t, d]) => <button key={t} aria-label={t[0].toUpperCase()+t.slice(1)} aria-current={tab===t?'page':undefined} className={tab === t ? 'on' : ''} onClick={() => go(t)}><Ic d={d} fill={tab === t && t !== 'create'} />{badge(t)}<span>{t[0].toUpperCase() + t.slice(1)}</span></button>)}
       <button className="push" aria-label={dark?'Light mode':'Dark mode'} onClick={()=>setDark(!dark)}><Ic d={I.moon} /><span>{dark ? 'Light' : 'Dark'} mode</span></button>
-      <button aria-label="Log out" onClick={logout}><Ic d={I.close} /><span>Log out</span></button></aside>
-    <header className="top"><h1 className="logo"><BrandMark />Threadline</h1><span><button onClick={() => setDark(!dark)} aria-label="Toggle dark mode"><Ic d={I.moon} /></button> <button onClick={logout} aria-label="Log out"><Ic d={I.close} /></button></span></header>
+      <button aria-label="Log out" onClick={logout}><Ic d={I.logout} /><span>Log out</span></button></aside>
+    <header className="top"><h1 className="logo"><BrandMark />Threadline</h1><span><button onClick={() => setDark(!dark)} aria-label="Toggle dark mode"><Ic d={I.moon} /></button> <button onClick={logout} aria-label="Log out"><Ic d={I.logout} /></button></span></header>
     <main key={tab} className="page" id="main-content" tabIndex={-1}>
       {refreshErr&&['home','explore','saved'].includes(tab)&&<div className="load-error" role="alert"><p>{refreshErr}</p><button className="ghost" onClick={refresh}>Try again</button></div>}
       {tab==='home'&&<div className="home"><section className="col"><div className="feed-heading"><span>Your people</span><button className="link" disabled={loading} onClick={()=>{refresh();loadStories();}}>{loading?'Refreshing…':'Refresh'}</button></div>{storiesErr&&<div className="stories-error" role="alert"><span>Stories could not load.</span><button className="link" onClick={loadStories}>Retry stories</button></div>}
