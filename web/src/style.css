@@ -127,3 +127,6 @@ html,body{overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent;-we
 .side button,.bottom button{position:relative}.badge{position:absolute;top:2px;left:22px;min-width:18px;height:18px;border-radius:99px;background:linear-gradient(135deg,#ec4899,#f59e0b);color:#fff;font:700 11px/18px system-ui;text-align:center;padding:0 5px;font-style:normal;animation:pop2 .4s var(--ease)}.bottom .badge{left:calc(50% + 4px);top:-4px}
 @keyframes pop2{from{transform:scale(0)}60%{transform:scale(1.3)}}
 .notif{display:flex;align-items:center;gap:12px;padding:12px 8px;border-radius:14px;animation:rise .45s var(--ease) both;transition:background .2s}.notif.new{background:color-mix(in srgb,var(--blue) 9%,transparent)}.notif div{flex:1;line-height:1.35}.notif small,.notif .mut{color:var(--mut)}.notif img{width:46px;height:46px;border-radius:8px;object-fit:cover}
+.ig .land{grid-column:1/-1;width:100%;min-width:0}.ig:has(.land){padding-bottom:0}
+.ig .land .ghost{background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.14);border-radius:99px;padding:9px 16px}.ig .land .ghost.big{padding:14px 24px}.ig .land .ghost:hover{background:rgba(255,255,255,.16)}
+.ig .land h1{margin:18px 0}.ig .land .llogo{margin:0}
