@@ -2,7 +2,7 @@
 const dimensions = (w, h) => w > 0 && h > 0 ? { w, h } : null;
 const exifOrientation = b => {
   try {
-    if (b.subarray(0, 6).toString('latin1') !== 'Exif\0\0') return 1;
+    if (b.subarray(0, 6).toString('latin1') !== 'Exif\0\0') return null;
     const t = b.subarray(6), order = t.subarray(0, 2).toString('latin1');
     if (order !== 'II' && order !== 'MM') return 1;
     const u16 = offset => order === 'II' ? t.readUInt16LE(offset) : t.readUInt16BE(offset);
@@ -46,7 +46,7 @@ export const imageDims = (b, ext) => {
       if (i + 2 > b.length) return null;
       const length = b.readUInt16BE(i);
       if (length < 2 || i + length > b.length) return null;
-      if (marker === 0xe1) orientation = exifOrientation(b.subarray(i + 2, i + length));
+      if (marker === 0xe1) orientation = exifOrientation(b.subarray(i + 2, i + length)) ?? orientation;
       if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) {
         if (length < 8) return null;
         size = dimensions(b.readUInt16BE(i + 5), b.readUInt16BE(i + 3));

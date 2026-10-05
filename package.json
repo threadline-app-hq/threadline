@@ -14,9 +14,10 @@
     "test:ui": "node test/ui-runner.mjs",
     "preview:local": "node test/preview.mjs",
     "typecheck": "cd web && tsc --noEmit",
-    "test:security": "node test/image-metadata.mjs && node test/http-security.mjs && node test/profile-search.mjs && node test/abuse-boundaries.mjs && node test/input-hardening.mjs && node test/pagination.mjs && node test/concurrency.mjs && node test/avatar-cleanup.mjs && node test/message-read-race.mjs && node test/rate-limits.mjs && node test/story-ownership.mjs && node test/unread-total.mjs && node test/notification-read-race.mjs",
+    "test:security": "node test/package-contract.mjs && node test/image-metadata.mjs && node test/http-security.mjs && node test/profile-search.mjs && node test/abuse-boundaries.mjs && node test/input-hardening.mjs && node test/pagination.mjs && node test/concurrency.mjs && node test/avatar-cleanup.mjs && node test/message-read-race.mjs && node test/rate-limits.mjs && node test/story-ownership.mjs && node test/unread-total.mjs && node test/notification-read-race.mjs",
     "test:keyboard": "node test/keyboard-qa.mjs",
-    "test:metadata": "node test/image-metadata.mjs"
+    "test:metadata": "node test/image-metadata.mjs",
+    "test:package": "node test/package-contract.mjs"
   },
   "dependencies": {
     "pg": "^8.13.0"

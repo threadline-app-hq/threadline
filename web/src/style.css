@@ -332,3 +332,5 @@ html,body{background:#f6f3ed}
 .ig:not(.dark) .notif.new .notification-comment{color:#596273}
 .notif .notification-copy .notification-comment{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
 @media(max-width:480px){.notif{gap:10px;padding:16px 8px}.notif .notification-meta{display:block}.notif .notification-meta small{display:block;margin-top:3px}.notif .notif-photo{min-width:40px;min-height:50px}.notif .notif-photo img{width:40px;height:50px}}
+.search-person small{white-space:normal;overflow:visible;text-overflow:clip}
+.search-person .search-followers{font-size:11px;margin-top:5px}

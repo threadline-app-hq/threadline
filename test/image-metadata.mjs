@@ -13,6 +13,8 @@ for (const little of [true, false]) for (let orientation = 1; orientation <= 8; 
   const jpeg = Buffer.concat([Buffer.from([255, 216]), ...(after ? [frame, meta] : [meta, frame]), Buffer.from([255, 218])]);
   assert.deepEqual(imageDims(jpeg, 'jpg'), orientation >= 5 ? {w:80,h:160} : {w:160,h:80});
 }
+const jpegWithXmp=Buffer.concat([Buffer.from([255,216]),exif(6,true),segment(0xe1,Buffer.from('http://ns.adobe.com/xap/1.0/')),segment(0xc0,sof),Buffer.from([255,218])]);
+assert.deepEqual(imageDims(jpegWithXmp,'jpg'),{w:80,h:160},'XMP APP1 must not reset EXIF orientation');
 for (const file of ['p1.jpg','p2.jpg','p3.jpg']) assert(imageDims(fs.readFileSync('seed/' + file), 'jpg'));
 assert.equal(imageDims(Buffer.from([255,216,255,224,255,255]), 'jpg'), null);
 assert.equal(imageDims(Buffer.from([255,216,255,192,0,8,8,0,0,0,0,0]), 'jpg'), null);
