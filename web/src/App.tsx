@@ -75,8 +75,8 @@ function PostCard({ post, me, onChange, onOpen, onUser, onDelete, priority = fal
       <button key={'s' + post.saved} className={'push' + (post.saved ? ' pulse' : '')} onClick={() => act(() => api.save(post.id, !post.saved))} disabled={pending} aria-label={post.saved ? "Unsave" : "Save"} aria-pressed={post.saved}><Ic d={I.bookmark} fill={post.saved} /></button>
     </div>
     <div className="meta"><b key={post.likes} className="count">{post.likes.toLocaleString()} {post.likes === 1 ? 'like' : 'likes'}</b>
-      {post.caption && <p><b>{post.user.handle}</b> {post.caption}</p>}
-      {post.comments.map(c => <p key={c.id}><b>{c.handle}</b> {c.text}</p>)}
+      {post.caption && <p className="post-caption"><b>{post.user.handle}</b> {post.caption}</p>}
+      {post.comments.map(c => <p className="post-comment" key={c.id}><b>{c.handle}</b> {c.text}</p>)}
       {post.commentCount > post.comments.length && <button className="link" onClick={onOpen}>View all {post.commentCount} comments</button>}
       {err && <p className="err" role="alert">{err}</p>}</div>
     <form className="comment" onSubmit={send}><input value={text} onChange={e => setText(e.target.value)} aria-label="Add a comment" placeholder="Add a comment…" maxLength={500} /><button disabled={!text.trim() || pending}>Post</button></form>

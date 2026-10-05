@@ -346,3 +346,5 @@ html,body{background:#f6f3ed}
 .grid:not(.single) button{background:var(--soft)}
 .grid:not(.single) img{position:absolute;inset:0;object-fit:contain;width:100%;height:100%;min-width:0;min-height:0;aspect-ratio:auto}
 .grid button:hover img{transform:none}
+/* Reader replies sit below the photograph's own note, not against its last line. */
+.post .meta .post-caption{margin-bottom:14px}.post .meta .post-comment{margin-block:8px;font-size:13px;line-height:1.6}
