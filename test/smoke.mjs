@@ -43,5 +43,13 @@ try {
   assert.equal((await call('DELETE', `/api/posts/${id}`, null, b.token)).s, 403);
   const img = await fetch(B + post.j.image); assert.equal(img.status, 200); assert.equal(img.headers.get('content-type'), 'image/png');
   assert.equal((await call('DELETE', `/api/posts/${id}`, null, a.token)).s, 204);
+  // recovery code reset
+  assert.match(a.recoveryCode, /^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+  assert.equal((await call('POST', '/api/auth/reset', { handle: 'alice', code: 'AAAA-BBBB-CCCC', password: 'newpassword1' })).s, 401);
+  const rs = await call('POST', '/api/auth/reset', { handle: 'alice', code: a.recoveryCode.toLowerCase(), password: 'newpassword1' });
+  assert.equal(rs.s, 200); assert.notEqual(rs.j.recoveryCode, a.recoveryCode);
+  assert.equal((await call('POST', '/api/auth/reset', { handle: 'alice', code: a.recoveryCode, password: 'newpassword2' })).s, 401); // old code dead
+  assert.equal((await call('POST', '/api/auth/login', { handle: 'alice', password: 'password123' })).s, 401);
+  assert.equal((await call('POST', '/api/auth/login', { handle: 'alice', password: 'newpassword1' })).s, 200);
   console.log('All smoke tests passed');
 } catch (e) { console.error(e); process.exitCode = 1; } finally { p.kill(); setTimeout(() => process.exit(), 100); }
