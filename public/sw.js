@@ -1,4 +1,4 @@
-const V='tl-field-1';const SHELL=['/','/assets/app.js','/assets/app.css','/icons/icon-192.png','/icons/icon-512.png','/fonts/InstrumentSans.ttf','/fonts/InstrumentSerif.ttf','/fonts/InstrumentSerif-Italic.ttf'];
+const V='tl-field-2';const SHELL=['/sample/p1.jpg','/','/assets/app.js','/assets/app.css','/icons/icon-192.png','/icons/icon-512.png','/fonts/InstrumentSans.woff2','/fonts/InstrumentSerif.woff2','/fonts/InstrumentSerif-Italic.woff2'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(V).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==V).map(x=>caches.delete(x)))).then(()=>self.clients.claim()))});
 self.addEventListener('fetch',e=>{const r=e.request,u=new URL(r.url);if(r.method!=='GET'||u.origin!==location.origin||u.pathname.startsWith('/api/'))return;

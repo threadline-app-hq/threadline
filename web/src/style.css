@@ -225,9 +225,9 @@ html,body{overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent;-we
 .search-clear{width:40px;height:40px;flex:none;display:grid;place-items:center;border-radius:10px;color:var(--mut)}.search-error{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:20px 0}.search-error p{margin:0}.search-error .ghost{flex:none;min-height:44px}
 
 /* Identity foundation: self-hosted, licensed type. Surface redesign follows. */
-@font-face{font-family:Instrument Sans;src:url('/fonts/InstrumentSans.ttf') format('truetype');font-style:normal;font-weight:400 700;font-display:swap}
-@font-face{font-family:Instrument Serif;src:url('/fonts/InstrumentSerif.ttf') format('truetype');font-style:normal;font-weight:400;font-display:swap}
-@font-face{font-family:Instrument Serif;src:url('/fonts/InstrumentSerif-Italic.ttf') format('truetype');font-style:italic;font-weight:400;font-display:swap}
+@font-face{font-family:Instrument Sans;src:url('/fonts/InstrumentSans.woff2') format('woff2');font-style:normal;font-weight:400 700;font-display:swap}
+@font-face{font-family:Instrument Serif;src:url('/fonts/InstrumentSerif.woff2') format('woff2');font-style:normal;font-weight:400;font-display:swap}
+@font-face{font-family:Instrument Serif;src:url('/fonts/InstrumentSerif-Italic.woff2') format('woff2');font-style:italic;font-weight:400;font-display:swap}
 .ig{font-family:'Instrument Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
 .ig .editorial .hero h1 em,.ig .editorial .lcta h2 em{font-family:'Instrument Serif',Georgia,serif}
 
