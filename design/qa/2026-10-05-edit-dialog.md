@@ -28,3 +28,7 @@ Source: https://github.com/threadline-app-hq/threadline/commit/c17d8ddd110b4cc58
 Deploy: https://dashboard.render.com/web/srv-db1hvigu01pc73ehkd70/deploys/dep-db1tk9lg1s2s73bnoi2g
 
 Unrestricted populated scan found the two desktop complementary landmarks were unnamed and indistinguishable. Named the navigation aside "App navigation" and the identity rail "Your profile". Retained populated-unrestricted as a separate default spec: 24 populated phone/desktop/theme/dialog states pass. The 13-state empty/auth/editor unrestricted scan also passes. Desktop populated home pixels inspected; naming does not change layout. This last naming fix and test are local pending a future batch.
+
+## Overlay states, 10:14 PDT
+
+New default spec overlay-unrestricted: startup boot error screen and story viewer (paused, delete confirmation) pass the full unrestricted axe rule set. Keyboard-only traversal reaches story viewer header tools by Tab, pause works, Escape closes and focus handling stays intact. Boot-error and story-confirm pixels captured. Local-only test change; production remains c17d8dd.
