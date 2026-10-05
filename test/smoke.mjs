@@ -25,6 +25,9 @@ try {
   assert.equal((await call("POST", `/api/posts/${id}/like`, null, b.token)).j.likes, 1);
   { const n = (await call('GET', '/api/notifications', null, a.token)).j; assert.equal(n.unread, 2); assert.deepEqual(n.items.map(i => i.type).sort(), ['follow', 'like']); assert.equal((await call('POST', '/api/notifications/read', null, a.token)).s, 204); assert.equal((await call('GET', '/api/notifications', null, a.token)).j.unread, 0); }
   assert.equal((await call('GET', '/api/metrics')).j.version, '2.0');
+  assert.equal((await call('POST', '/api/stories', { image: png }, a.token)).s, 201);
+  assert.equal((await call('GET', '/api/stories', null, b.token)).j.groups.length, 1);
+  assert.equal((await call('GET', '/api/stories', null, a.token)).j.groups[0].items.length, 1);
   assert.equal((await call('POST', '/api/messages/alice', { text: 'hey' }, b.token)).s, 201);
   assert.equal((await call('GET', '/api/messages', null, a.token)).j.unread, 1);
   assert.equal((await call('GET', '/api/messages/bob', null, a.token)).j.messages.length, 1);
