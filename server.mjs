@@ -5,10 +5,11 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import fs from 'node:fs';
+import zlib from 'node:zlib';
 import path from 'node:path';
 const __dir = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dir, 'public');
-const STATIC_MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.ico': 'image/x-icon', '.json': 'application/json' };
+const STATIC_MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
 
 const PORT = Number(process.env.PORT || 8080);
 const ORIGIN = process.env.CORS_ORIGIN || '*';
@@ -29,7 +30,12 @@ CREATE TABLE IF NOT EXISTS saves(user_id INT NOT NULL REFERENCES users(id) ON DE
 CREATE TABLE IF NOT EXISTS follows(follower INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, followee INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, PRIMARY KEY(follower,followee));
 CREATE TABLE IF NOT EXISTS comments(id SERIAL PRIMARY KEY, post_id INT NOT NULL REFERENCES posts(id) ON DELETE CASCADE, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, text TEXT NOT NULL, created BIGINT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_posts_user ON posts(user_id, created);
-CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id, created)`;
+CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id, created);
+CREATE INDEX IF NOT EXISTS idx_follows_followee ON follows(followee);
+CREATE INDEX IF NOT EXISTS idx_likes_post ON likes(post_id);
+CREATE INDEX IF NOT EXISTS idx_saves_post ON saves(post_id);
+CREATE TABLE IF NOT EXISTS notifications(id SERIAL PRIMARY KEY, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, actor INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, type TEXT NOT NULL, post_id INT REFERENCES posts(id) ON DELETE CASCADE, text TEXT NOT NULL DEFAULT '', created BIGINT NOT NULL, seen BOOLEAN NOT NULL DEFAULT FALSE);
+CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(user_id, id)`;
 
 let pool;
 export async function initDb(p) {
@@ -67,14 +73,22 @@ const publicUser = async (u, me) => ({ id: u.id, handle: u.handle, name: u.name,
   following: await count('SELECT COUNT(*) c FROM follows WHERE follower=$1', u.id),
   posts: await count('SELECT COUNT(*) c FROM posts WHERE user_id=$1', u.id),
   followedByMe: me ? !!(await one('SELECT 1 x FROM follows WHERE follower=$1 AND followee=$2', me, u.id)) : false });
-const shapePost = async (p, me) => ({ id: p.id, image: '/uploads/' + p.image, caption: p.caption, created: p.created,
-  user: { id: p.user_id, handle: p.handle, name: p.name },
-  likes: await count('SELECT COUNT(*) c FROM likes WHERE post_id=$1', p.id),
-  liked: !!(await one('SELECT 1 x FROM likes WHERE user_id=$1 AND post_id=$2', me, p.id)),
-  saved: !!(await one('SELECT 1 x FROM saves WHERE user_id=$1 AND post_id=$2', me, p.id)),
-  commentCount: await count('SELECT COUNT(*) c FROM comments WHERE post_id=$1', p.id),
-  comments: (await q('SELECT c.id, c.text, c.created, u.handle FROM comments c JOIN users u ON u.id=c.user_id WHERE c.post_id=$1 ORDER BY c.created DESC, c.id DESC LIMIT 3', p.id)).reverse() });
-const shapeAll = (rows, me) => Promise.all(rows.map(p => shapePost(p, me)));
+const shapeAll = async (rows, me) => {
+  if (!rows.length) return [];
+  const ids = rows.map(r => Number(r.id)); const IN = ids.join(',');
+  const [lc, mine, sv, cc, cm] = await Promise.all([
+    q(`SELECT post_id, COUNT(*) c FROM likes WHERE post_id IN (${IN}) GROUP BY post_id`),
+    q(`SELECT post_id FROM likes WHERE user_id=$1 AND post_id IN (${IN})`, me),
+    q(`SELECT post_id FROM saves WHERE user_id=$1 AND post_id IN (${IN})`, me),
+    q(`SELECT post_id, COUNT(*) c FROM comments WHERE post_id IN (${IN}) GROUP BY post_id`),
+    Promise.all(ids.map(id => q('SELECT c.id, c.text, c.created, u.handle FROM comments c JOIN users u ON u.id=c.user_id WHERE c.post_id=$1 ORDER BY c.created DESC, c.id DESC LIMIT 3', id))),
+  ]);
+  const m = (a) => new Map(a.map(x => [x.post_id, Number(x.c)])); const L = m(lc), C = m(cc), M = new Set(mine.map(x => x.post_id)), S = new Set(sv.map(x => x.post_id));
+  return rows.map((p, i) => ({ id: p.id, image: '/uploads/' + p.image, caption: p.caption, created: p.created, user: { id: p.user_id, handle: p.handle, name: p.name },
+    likes: L.get(p.id) || 0, liked: M.has(p.id), saved: S.has(p.id), commentCount: C.get(p.id) || 0, comments: cm[i].reverse() }));
+};
+const shapePost = async (p, me) => (await shapeAll([p], me))[0];
+const notify = (to, actor, type, post, text = '') => to === actor ? null : run('INSERT INTO notifications(user_id,actor,type,post_id,text,created) VALUES($1,$2,$3,$4,$5,$6)', to, actor, type, post, text.slice(0, 120), Date.now()).catch(() => {});
 const POST_SQL = 'SELECT p.id, p.user_id, p.image, p.caption, p.created, u.handle, u.name FROM posts p JOIN users u ON u.id=p.user_id';
 const page = (url, def = 20) => { const l = Math.min(Number(url.searchParams.get('limit')) || def, 50); const before = Number(url.searchParams.get('before')) || 2e9; return { l, before }; };
 const userByHandle = async h => (await one('SELECT * FROM users WHERE handle_lc=$1', String(h).toLowerCase())) || bad(404, 'User not found');
@@ -82,6 +96,7 @@ const userByHandle = async h => (await one('SELECT * FROM users WHERE handle_lc=
 const sniff = b => b[0] === 0xff && b[1] === 0xd8 ? 'jpg' : b.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ? 'png'
   : b.subarray(0, 4).toString() === 'RIFF' && b.subarray(8, 12).toString() === 'WEBP' ? 'webp' : null;
 
+const stats = { n: 0, e4: 0, e5: 0, ms: 0 };
 const routes = [];
 const route = (method, pattern, auth, fn) => routes.push({ method, re: new RegExp('^' + pattern.replace(/:(\w+)/g, '(?<$1>[^/]+)') + '$'), auth, fn });
 
@@ -99,7 +114,8 @@ route('POST', '/api/auth/signup', false, async ({ body, ip }) => {
 route('POST', '/api/auth/login', false, async ({ body, ip }) => {
   if (limited(ip, 'login', 20, 15 * 60e3)) bad(429, 'Too many attempts, try again in a few minutes');
   const u = await one('SELECT * FROM users WHERE handle_lc=$1', String(body.handle || '').toLowerCase());
-  if (!u || !checkPw(String(body.password || ''), u.pw)) bad(401, 'Wrong handle or password');
+  if (!u) { hashPw('x'); bad(401, 'Wrong handle or password'); }
+  if (!checkPw(String(body.password || ''), u.pw)) bad(401, 'Wrong handle or password');
   return { data: { token: sign(u.id), user: await publicUser(u, u.id) } };
 });
 route('GET', '/api/me', true, async ({ me }) => ({ data: await publicUser(await one('SELECT * FROM users WHERE id=$1', me), me) }));
@@ -129,7 +145,7 @@ route('GET', '/api/users/:handle', true, async ({ me, params }) => {
 });
 route('POST', '/api/users/:handle/follow', true, async ({ me, params }) => {
   const u = await userByHandle(params.handle); if (u.id === me) bad(400, 'You cannot follow yourself');
-  await run('INSERT INTO follows VALUES($1,$2) ON CONFLICT DO NOTHING', me, u.id); return { data: await publicUser(u, me) };
+  if ((await run('INSERT INTO follows VALUES($1,$2) ON CONFLICT DO NOTHING', me, u.id)).rowCount) await notify(u.id, me, 'follow', null); return { data: await publicUser(u, me) };
 });
 route('DELETE', '/api/users/:handle/follow', true, async ({ me, params }) => {
   const u = await userByHandle(params.handle);
@@ -150,16 +166,22 @@ route('DELETE', '/api/posts/:id', true, async ({ me, params }) => {
   const p = await getPost(params.id); if (p.user_id !== me) bad(403, 'Not your post');
   await run('DELETE FROM posts WHERE id=$1', p.id); await run('DELETE FROM images WHERE key=$1', p.image); return { status: 204 };
 });
-const toggle = (method, tail, sql) => route(method, '/api/posts/:id/' + tail, true, async ({ me, params }) => { const p = await getPost(params.id); await run(sql, me, p.id); return { data: await shapePost(p, me) }; });
-toggle('POST', 'like', 'INSERT INTO likes VALUES($1,$2) ON CONFLICT DO NOTHING');
+const toggle = (method, tail, sql, kind) => route(method, '/api/posts/:id/' + tail, true, async ({ me, params }) => { const p = await getPost(params.id); const r = await run(sql, me, p.id); if (kind && r.rowCount) await notify(p.user_id, me, kind, p.id); return { data: await shapePost(p, me) }; });
+toggle('POST', 'like', 'INSERT INTO likes VALUES($1,$2) ON CONFLICT DO NOTHING', 'like');
 toggle('DELETE', 'like', 'DELETE FROM likes WHERE user_id=$1 AND post_id=$2');
 toggle('POST', 'save', 'INSERT INTO saves VALUES($1,$2) ON CONFLICT DO NOTHING');
 toggle('DELETE', 'save', 'DELETE FROM saves WHERE user_id=$1 AND post_id=$2');
 route('GET', '/api/posts/:id/comments', true, async ({ params }) => { const p = await getPost(params.id); return { data: { comments: await q('SELECT c.id,c.text,c.created,u.handle FROM comments c JOIN users u ON u.id=c.user_id WHERE c.post_id=$1 ORDER BY c.created, c.id', p.id) } }; });
 route('POST', '/api/posts/:id/comments', true, async ({ me, params, body }) => {
   const p = await getPost(params.id); const text = String(body.text || '').trim(); if (!text || text.length > 500) bad(400, 'Comment must be 1-500 characters');
-  await run('INSERT INTO comments(post_id,user_id,text,created) VALUES($1,$2,$3,$4)', p.id, me, text, Date.now()); return { status: 201, data: await shapePost(p, me) };
+  await run('INSERT INTO comments(post_id,user_id,text,created) VALUES($1,$2,$3,$4)', p.id, me, text, Date.now()); await notify(p.user_id, me, 'comment', p.id, text); return { status: 201, data: await shapePost(p, me) };
 });
+route('GET', '/api/notifications', true, async ({ me }) => {
+  const rows = await q('SELECT n.id,n.type,n.post_id,n.text,n.created,n.seen,u.handle,u.name,p.image FROM notifications n JOIN users u ON u.id=n.actor LEFT JOIN posts p ON p.id=n.post_id WHERE n.user_id=$1 ORDER BY n.id DESC LIMIT 60', me);
+  return { data: { items: rows.map(r => ({ id: r.id, type: r.type, postId: r.post_id, text: r.text, created: r.created, seen: r.seen, user: { handle: r.handle, name: r.name }, image: r.image ? '/uploads/' + r.image : null })), unread: await count('SELECT COUNT(*) c FROM notifications WHERE user_id=$1 AND NOT seen', me) } };
+});
+route('POST', '/api/notifications/read', true, async ({ me }) => { await run('UPDATE notifications SET seen=TRUE WHERE user_id=$1 AND NOT seen', me); return { status: 204 }; });
+route('GET', '/api/metrics', false, async ({ ip }) => ({ data: { uptimeSec: Math.round(process.uptime()), requests: stats.n, errors5xx: stats.e5, errors4xx: stats.e4, avgMs: stats.n ? Math.round(stats.ms / stats.n) : 0, memMB: Math.round(process.memoryUsage().rss / 1048576), version: '2.0' } }));
 route('GET', '/api/health', false, async () => { await one('SELECT 1 x'); return { data: { ok: true } }; });
 
 const readBody = (req, max = 12 * 1024 * 1024) => new Promise((res, rej) => {
@@ -170,8 +192,12 @@ const readBody = (req, max = 12 * 1024 * 1024) => new Promise((res, rej) => {
 });
 
 export const server = http.createServer(async (req, res) => {
-  const headers = { 'access-control-allow-origin': ORIGIN, 'access-control-allow-headers': 'authorization,content-type', 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS', 'x-content-type-options': 'nosniff' };
-  const send = (status, data) => { res.writeHead(status, { ...headers, ...(data === undefined ? {} : { 'content-type': 'application/json' }) }); res.end(data === undefined ? undefined : JSON.stringify(data)); };
+  const headers = { 'access-control-allow-origin': ORIGIN, 'access-control-allow-headers': 'authorization,content-type', 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS', 'x-content-type-options': 'nosniff', 'x-frame-options': 'DENY', 'referrer-policy': 'strict-origin-when-cross-origin', 'strict-transport-security': 'max-age=31536000; includeSubDomains', 'permissions-policy': 'camera=(), microphone=(), geolocation=()', 'content-security-policy': "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" };
+  const t0 = Date.now(); const rid = crypto.randomUUID().slice(0, 8); headers['x-request-id'] = rid;
+  res.on('finish', () => { const ms = Date.now() - t0; stats.n++; stats.ms += ms; if (res.statusCode >= 500) stats.e5++; else if (res.statusCode >= 400) stats.e4++; if (process.env.NODE_ENV === 'production' && !req.url.startsWith('/assets')) console.log(JSON.stringify({ rid, m: req.method, u: req.url.split('?')[0], s: res.statusCode, ms })); });
+  const send = (status, data) => { if (data === undefined) { res.writeHead(status, headers); return res.end(); } const json = Buffer.from(JSON.stringify(data));
+    if (json.length > 1024 && /\bgzip\b/.test(req.headers['accept-encoding'] || '')) { const z = zlib.gzipSync(json); res.writeHead(status, { ...headers, 'content-type': 'application/json', 'content-encoding': 'gzip', vary: 'accept-encoding' }); return res.end(z); }
+    res.writeHead(status, { ...headers, 'content-type': 'application/json' }); res.end(json); };
   try {
     const url = new URL(req.url, 'http://x'); const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').toString().split(',')[0].trim();
     if (req.method === 'OPTIONS') return send(204);
@@ -203,3 +229,5 @@ export const server = http.createServer(async (req, res) => {
   }
 });
 if (process.argv[1] === fileURLToPath(import.meta.url)) { await initDb(); if (process.env.SEED === '1') { try { await (await import('./seed.mjs')).seed({ q, one, run, hashPw, dir: path.join(__dir, 'seed'), MIME }); server.listen(PORT, () => console.log(`Threadline API on :${PORT}`)); } catch (e) { console.error('Seed skipped:', e.message); } } }
+
+for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 8000).unref(); });
