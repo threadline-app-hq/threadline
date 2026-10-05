@@ -36,7 +36,7 @@ function Auth({ onAuth, initial = 'login', onBack }: { onAuth: (u: User) => void
   const submit = async (e: React.FormEvent) => { e.preventDefault(); setErr(''); setBusy(true);
     try { const r: any = mode === 'login' ? await api.login(handle, pw) : mode === 'reset' ? await api.reset(handle, code, pw) : await api.signup(handle, name || handle, pw); setToken(r.token); if (r.recoveryCode) setShown({ code: r.recoveryCode, user: r.user }); else onAuth(r.user); }
     catch (x: any) { setErr(x.message); } finally { setBusy(false); } };
-  if (shown) return <div className="authwrap"><div className="authcard"><h1 className="logo">Save your recovery code</h1><p className="tag">If you forget your password, this code is the only way back in. We never email you, so write it down.</p>
+  if (shown) return <div className="authwrap"><div className="authcard"><h1 className="logo" style={{ fontSize: 28 }}>Save your recovery code</h1><p className="tag">If you forget your password, this code is the only way back in. We never email you, so write it down.</p>
     <div className="rcode" data-testid="recovery-code">{shown.code}</div>
     <button type="button" className="ghost" onClick={() => navigator.clipboard?.writeText(shown.code)}>Copy code</button>
     <button className="primary" onClick={() => onAuth(shown.user)}>I saved it, continue</button></div></div>;
