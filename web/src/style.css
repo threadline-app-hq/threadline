@@ -348,3 +348,5 @@ html,body{background:#f6f3ed}
 .grid button:hover img{transform:none}
 /* Reader replies sit below the photograph's own note, not against its last line. */
 .post .meta .post-caption{margin-bottom:14px}.post .meta .post-comment{margin-block:8px;font-size:13px;line-height:1.6}
+/* A replacement photo is prepared over the existing preview, without collapsing it. */
+.create .drop{position:relative}.photo-reading{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:color-mix(in srgb,var(--bg) 92%,transparent);color:var(--fg);font-size:13px}
