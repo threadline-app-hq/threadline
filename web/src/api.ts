@@ -12,10 +12,11 @@ export const setToken = (t: string) => { token = t; t ? localStorage.setItem('tl
 export const img = (p: string) => (p.startsWith('http') ? p : BASE + p);
 
 async function call<T>(method: string, url: string, body?: unknown): Promise<T> {
-  let r:Response;try{r = await fetch(BASE + url, { method, headers: { 'content-type': 'application/json', ...(token ? { authorization: 'Bearer ' + token } : {}) }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(30000) });}catch(e:any){throw new Error(e?.name==='TimeoutError'?'This is taking too long. Please try again.':'Could not connect. Check your connection and try again.');}
-  if(r.status===401&&token&&!url.startsWith('/api/auth/')){ setToken(''); onAuthLost(); }
+  const requestToken=token;let r:Response;try{r = await fetch(BASE + url, { method, headers: { 'content-type': 'application/json', ...(requestToken ? { authorization: 'Bearer ' + requestToken } : {}) }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(30000) });}catch(e:any){throw new Error(e?.name==='TimeoutError'?'This is taking too long. Please try again.':'Could not connect. Check your connection and try again.');}
+  if(r.status===401&&token&&token===requestToken&&!url.startsWith('/api/auth/')){ setToken(''); onAuthLost(); }
   const data = r.status === 204 ? null : await r.json().catch(() => null);
   if (!r.ok) throw new Error((data && data.error) || 'Something went wrong');
+  if(r.status!==204&&data===null)throw new Error('The server returned an unreadable response. Please try again.');
   return data as T;
 }
 export const api = {
@@ -32,6 +33,7 @@ export const api = {
   follow: (h: string, on: boolean) => call<User>(on ? 'POST' : 'DELETE', `/api/users/${encodeURIComponent(h)}/follow`),
   like: (id: number, on: boolean) => call<Post>(on ? 'POST' : 'DELETE', `/api/posts/${id}/like`),
   save: (id: number, on: boolean) => call<Post>(on ? 'POST' : 'DELETE', `/api/posts/${id}/save`),
+  post:(id:number)=>call<Post>('GET',`/api/posts/${id}`),
   comments: (id: number) => call<{ comments: Comment[] }>('GET', `/api/posts/${id}/comments`),
   comment: (id: number, text: string) => call<Post>('POST', `/api/posts/${id}/comments`, { text }),
   createPost: (image: string, caption: string) => call<Post>('POST', '/api/posts', { image, caption }),

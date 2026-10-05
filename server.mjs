@@ -64,6 +64,7 @@ const checkPw = (pw, stored) => { const [s, h] = stored.split(':'); const x = cr
 const sign = (uid, version = 0) => { const body = b64(JSON.stringify({ uid, version, exp: Date.now() + 30 * 864e5 })); return body + '.' + crypto.createHmac('sha256', SECRET).update(body).digest('base64url'); };
 const verify = tok => {
   const [body, sig] = (tok || '').split('.'); if (!body || !sig) return null;
+  if(!/^[A-Za-z0-9_-]+$/.test(body)||!/^[A-Za-z0-9_-]+$/.test(sig)||tok.split('.').length!==2)return null;
   const good = crypto.createHmac('sha256', SECRET).update(body).digest('base64url');
   if (sig.length !== good.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(good))) return null;
   try {const p=JSON.parse(Buffer.from(body,'base64url').toString());return Number.isInteger(p.uid)&&p.exp>Date.now()?{uid:p.uid,version:p.version||0}:null;}catch{return null;}
@@ -99,7 +100,7 @@ const shapeAll = async (rows, me) => {
 const shapePost = async (p, me) => (await shapeAll([p], me))[0];
 const notify = (to, actor, type, post, text = '') => to === actor ? null : run('INSERT INTO notifications(user_id,actor,type,post_id,text,created) VALUES($1,$2,$3,$4,$5,$6)', to, actor, type, post, text.slice(0, 120), Date.now()).catch(() => {});
 const POST_SQL = 'SELECT p.id, p.user_id, p.image, p.caption, p.created, u.handle, u.name, u.avatar FROM posts p JOIN users u ON u.id=p.user_id';
-const page = (url, def = 20) => { const l = Math.min(Number(url.searchParams.get('limit')) || def, 50); const before = Number(url.searchParams.get('before')) || 2e9; return { l, before }; };
+const page=(url,def=20)=>{const limit=Number(url.searchParams.get('limit'));const l=Number.isInteger(limit)&&limit>0?Math.min(limit,50):def;const cursor=Number(url.searchParams.get('before'));const before=Number.isSafeInteger(cursor)&&cursor>0?cursor:2e9;return{l,before};};
 const userByHandle = async h => (await one('SELECT * FROM users WHERE handle_lc=$1', String(h).toLowerCase())) || bad(404, 'User not found');
 
 // ---- image storage: Supabase Storage when configured (SUPABASE_URL + SUPABASE_SERVICE_KEY), else Postgres bytea. Falls back to Postgres if an upload fails.
@@ -127,7 +128,7 @@ route('POST', '/api/auth/signup', false, async ({ body, ip }) => {
   if (limited(ip, 'signup', 10, 3600e3)) bad(429, 'Too many signups, try later');
   const handle = String(body.handle || '').trim(), name = String(body.name || handle).trim().slice(0, 60), pw = String(body.password || '');
   if (!/^[a-zA-Z0-9._]{3,30}$/.test(handle)) bad(400, 'Handle must be 3-30 letters, numbers, dots or underscores');
-  if (pw.length < 8) bad(400, 'Password must be at least 8 characters');
+  if(pw.length<8||pw.length>1024)bad(400,'Password must be 8-1024 characters');
   if (await one('SELECT 1 x FROM users WHERE handle_lc=$1', handle.toLowerCase())) bad(409, 'That handle is taken');
   let u; const code = newCode();
   try { u = await one('INSERT INTO users(handle,handle_lc,name,pw,created,recovery) VALUES($1,$2,$3,$4,$5,$6) RETURNING *', handle, handle.toLowerCase(), name, hashPw(pw), Date.now(), codeHash(code, handle)); }
@@ -136,7 +137,7 @@ route('POST', '/api/auth/signup', false, async ({ body, ip }) => {
 });
 route('POST', '/api/auth/reset', false, async ({ body, ip }) => {
   if (limited(ip, 'reset', 8, 3600e3)) bad(429, 'Too many attempts, try again later');
-  const pw = String(body.password || ''); if (pw.length < 8) bad(400, 'Password must be at least 8 characters');
+  const pw = String(body.password || ''); if(pw.length<8||pw.length>1024)bad(400,'Password must be 8-1024 characters');
   const u = await one('SELECT * FROM users WHERE handle_lc=$1', String(body.handle || '').toLowerCase());
   const ok = u && u.recovery && crypto.timingSafeEqual(Buffer.from(codeHash(body.code || '', u.handle)), Buffer.from(u.recovery));
   if (!ok) bad(401, 'Handle or recovery code is wrong');
@@ -144,12 +145,13 @@ route('POST', '/api/auth/reset', false, async ({ body, ip }) => {
   return { data: { token: sign(u.id,updated.session_version), user: await publicUser(u, u.id), recoveryCode: code } };
 });
 route('POST', '/api/auth/recovery-code', true, async ({ me, body }) => {
-  const u = await one('SELECT * FROM users WHERE id=$1', me); if (!checkPw(String(body.password || ''), u.pw)) bad(401, 'Wrong password');
+  if(limited(String(me),'recovery-code',8,3600e3))bad(429,'Too many attempts, try again later');if(String(body.password||'').length>1024)bad(400,'Password must be at most 1024 characters');const u = await one('SELECT * FROM users WHERE id=$1', me); if (!checkPw(String(body.password || ''), u.pw)) bad(401, 'Wrong password');
   const code = newCode(); await run('UPDATE users SET recovery=$1 WHERE id=$2', codeHash(code, u.handle), me); return { data: { recoveryCode: code } };
 });
 route('POST', '/api/auth/login', false, async ({ body, ip }) => {
   if (limited(ip, 'login', 20, 15 * 60e3)) bad(429, 'Too many attempts, try again in a few minutes');
-  const u = await one('SELECT * FROM users WHERE handle_lc=$1', String(body.handle || '').toLowerCase());
+  if(String(body.password||'').length>1024)bad(400,'Password must be at most 1024 characters');
+  const u = await one('SELECT * FROM users WHERE handle_lc=$1', String(body.handle || '').trim().toLowerCase());
   if (!u) { hashPw('x'); bad(401, 'Wrong handle or password'); }
   if (!checkPw(String(body.password || ''), u.pw)) bad(401, 'Wrong handle or password');
   return { data: { token: sign(u.id,u.session_version), user: await publicUser(u, u.id) } };
@@ -205,6 +207,7 @@ route('POST', '/api/posts', true, async ({ me, body, ip }) => {
   return { status: 201, data: await shapePost(await one(`${POST_SQL} WHERE p.id=$1`, r.id), me) };
 });
 const getPost = async id => { if (!/^\d{1,9}$/.test(id)) bad(404, 'Post not found'); return (await one(`${POST_SQL} WHERE p.id=$1`, Number(id))) || bad(404, 'Post not found'); };
+route('GET','/api/posts/:id',true,async({me,params})=>({data:await shapePost(await getPost(params.id),me)}));
 route('DELETE', '/api/posts/:id', true, async ({ me, params }) => {
   const p = await getPost(params.id); if (p.user_id !== me) bad(403, 'Not your post');
   await run('DELETE FROM posts WHERE id=$1', p.id); await dropImage(p.image); return { status: 204 };
@@ -262,9 +265,9 @@ route('GET', '/api/metrics', false, async ({ ip }) => ({ data: { uptimeSec: Math
 route('GET', '/api/health', false, async () => { await one('SELECT 1 x'); return { data: { ok: true } }; });
 
 const readBody = (req, max = 12 * 1024 * 1024) => new Promise((res, rej) => {
-  let n = 0; const chunks = [];
-  req.on('data', c => { n += c.length; if (n > max) { rej(new HttpError(413, 'Request too large')); req.destroy(); } else chunks.push(c); });
-  req.on('end', () => { if (!chunks.length) return res({}); try { res(JSON.parse(Buffer.concat(chunks).toString())); } catch { rej(new HttpError(400, 'Invalid JSON')); } });
+  let n=0;let tooLarge=false;const chunks=[];
+  req.on('data', c => { n += c.length; if(n>max){if(!tooLarge){tooLarge=true;chunks.length=0;rej(new HttpError(413,'Request too large'));}}else if(!tooLarge)chunks.push(c); });
+  req.on('end', () => { if(tooLarge)return;if (!chunks.length) return res({}); try{const value=JSON.parse(Buffer.concat(chunks).toString());if(value===null||typeof value!=='object'||Array.isArray(value))return rej(new HttpError(400,'JSON body must be an object'));res(value);}catch { rej(new HttpError(400, 'Invalid JSON')); } });
   req.on('error', rej);
 });
 
@@ -276,6 +279,7 @@ export const server = http.createServer(async (req, res) => {
     if (json.length > 1024 && /\bgzip\b/.test(req.headers['accept-encoding'] || '')) { const z = zlib.gzipSync(json); res.writeHead(status, { ...headers, 'content-type': 'application/json', 'content-encoding': 'gzip', vary: 'accept-encoding' }); return res.end(z); }
     res.writeHead(status, { ...headers, 'content-type': 'application/json' }); res.end(json); };
   try {
+    if(req.method==='HEAD')req.method='GET';
     const url = new URL(req.url, 'http://x'); const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').toString().split(',')[0].trim();
     if (req.method === 'OPTIONS') return send(204);
     if (url.pathname.startsWith('/uploads/') && req.method === 'GET') {
@@ -303,6 +307,7 @@ export const server = http.createServer(async (req, res) => {
     }
     send(404, { error: 'Not found' });
   } catch (e) {
+    if(e instanceof URIError)return send(400,{error:'Invalid URL'});
     if (e instanceof HttpError) return send(e.status, { error: e.message });
     console.error(e); send(500, { error: 'Internal error' });
   }

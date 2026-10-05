@@ -31,3 +31,7 @@ These are best-effort pingers, not an uptime guarantee. Render Free can sleep, r
 ## Boundaries
 
 This is a small-app baseline, not a proven production-scale service. It has no video/reels, moderation tools, email verification, replication or independently verified real-iPhone installation flow. The API rate limiter lives in one process. Sample images and accounts are fictional. Uploaded images are public to anyone with their URL.
+
+## QA coverage
+
+The UI runner checks phone/desktop layouts, CDP touch gestures, reduced motion, modal focus isolation, network errors and retry, message/profile/search race guards, lost authentication, PWA offline shell and accessibility. `node test/ui-runner.mjs <spec> ...` runs a subset with a fresh database for each spec. Automated accessibility scans currently cover 13 entry/empty/dialog states and 24 populated phone/desktop light/dark states. These scans are not a manual accessibility certification. Chromium touch emulation does not prove physical iPhone/Safari behavior.

@@ -14,13 +14,14 @@
     "test:ui": "node test/ui-runner.mjs",
     "preview:local": "node test/preview.mjs",
     "typecheck": "cd web && tsc --noEmit",
-    "test:security": "node test/http-security.mjs && node test/profile-search.mjs && node test/abuse-boundaries.mjs",
+    "test:security": "node test/http-security.mjs && node test/profile-search.mjs && node test/abuse-boundaries.mjs && node test/input-hardening.mjs && node test/pagination.mjs",
     "test:keyboard": "node test/keyboard-qa.mjs"
   },
   "dependencies": {
     "pg": "^8.13.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "pg-mem": "^3.0.0",
     "playwright": "^1.56.0"
   }
