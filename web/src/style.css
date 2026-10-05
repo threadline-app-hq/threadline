@@ -140,3 +140,4 @@ html,body{overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent;-we
 .ig .top{min-height:0;height:auto;align-items:center}
 .ig{align-content:start}.ig .loading,.ig .authwrap,.ig .land{align-self:stretch}
 .hits{margin:22px 0 10px;font-size:15px}
+.more{min-height:60px;display:grid;place-items:center}
