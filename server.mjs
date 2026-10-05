@@ -32,6 +32,9 @@ CREATE TABLE IF NOT EXISTS comments(id SERIAL PRIMARY KEY, post_id INT NOT NULL 
 CREATE INDEX IF NOT EXISTS idx_posts_user ON posts(user_id, created);
 CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id, created);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT;
+CREATE TABLE IF NOT EXISTS messages(id SERIAL PRIMARY KEY, sender INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, recipient INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, text TEXT NOT NULL, created BIGINT NOT NULL, seen BOOLEAN NOT NULL DEFAULT FALSE);
+CREATE INDEX IF NOT EXISTS idx_msg_pair ON messages(sender, recipient, id);
+CREATE INDEX IF NOT EXISTS idx_msg_recipient ON messages(recipient, seen);
 CREATE INDEX IF NOT EXISTS idx_follows_followee ON follows(followee);
 CREATE INDEX IF NOT EXISTS idx_likes_post ON likes(post_id);
 CREATE INDEX IF NOT EXISTS idx_saves_post ON saves(post_id);
@@ -185,6 +188,26 @@ route('GET', '/api/posts/:id/comments', true, async ({ params }) => { const p = 
 route('POST', '/api/posts/:id/comments', true, async ({ me, params, body }) => {
   const p = await getPost(params.id); const text = String(body.text || '').trim(); if (!text || text.length > 500) bad(400, 'Comment must be 1-500 characters');
   await run('INSERT INTO comments(post_id,user_id,text,created) VALUES($1,$2,$3,$4)', p.id, me, text, Date.now()); await notify(p.user_id, me, 'comment', p.id, text); return { status: 201, data: await shapePost(p, me) };
+});
+route('GET', '/api/messages', true, async ({ me }) => {
+  const rows = await q('SELECT m.id,m.sender,m.recipient,m.text,m.created,m.seen FROM messages m WHERE m.sender=$1 OR m.recipient=$1 ORDER BY m.id DESC LIMIT 400', me);
+  const seen = new Map(); for (const r of rows) { const other = r.sender === me ? r.recipient : r.sender; if (!seen.has(other)) seen.set(other, { last: r, unread: 0 }); if (r.recipient === me && !r.seen) seen.get(other).unread++; }
+  const out = [];
+  for (const [id, v] of seen) { const u = await one('SELECT id,handle,name,avatar FROM users WHERE id=$1', id); if (u) out.push({ user: { id: u.id, handle: u.handle, name: u.name, avatar: u.avatar ? '/uploads/' + u.avatar : null }, text: v.last.text, created: v.last.created, mine: v.last.sender === me, unread: v.unread }); }
+  return { data: { conversations: out, unread: out.reduce((a, c) => a + c.unread, 0) } };
+});
+route('GET', '/api/messages/:handle', true, async ({ me, params }) => {
+  const u = await userByHandle(params.handle);
+  const rows = await q('SELECT id,sender,text,created FROM messages WHERE (sender=$1 AND recipient=$2) OR (sender=$2 AND recipient=$1) ORDER BY id DESC LIMIT 100', me, u.id);
+  await run('UPDATE messages SET seen=TRUE WHERE recipient=$1 AND sender=$2 AND NOT seen', me, u.id);
+  return { data: { user: { id: u.id, handle: u.handle, name: u.name, avatar: u.avatar ? '/uploads/' + u.avatar : null }, messages: rows.reverse().map(r => ({ id: r.id, mine: r.sender === me, text: r.text, created: r.created })) } };
+});
+route('POST', '/api/messages/:handle', true, async ({ me, params, body, ip }) => {
+  if (limited(ip, 'dm', 120, 3600e3)) bad(429, 'Sending too fast');
+  const u = await userByHandle(params.handle); if (u.id === me) bad(400, 'You cannot message yourself');
+  const text = String(body.text || '').trim(); if (!text || text.length > 1000) bad(400, 'Message must be 1-1000 characters');
+  const r = await one('INSERT INTO messages(sender,recipient,text,created) VALUES($1,$2,$3,$4) RETURNING id,created', me, u.id, text, Date.now());
+  return { status: 201, data: { id: r.id, mine: true, text, created: r.created } };
 });
 route('GET', '/api/notifications', true, async ({ me }) => {
   const rows = await q('SELECT n.id,n.type,n.post_id,n.text,n.created,n.seen,u.handle,u.name,u.avatar,p.image FROM notifications n JOIN users u ON u.id=n.actor LEFT JOIN posts p ON p.id=n.post_id WHERE n.user_id=$1 ORDER BY n.id DESC LIMIT 60', me);
