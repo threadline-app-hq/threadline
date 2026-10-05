@@ -12,8 +12,8 @@ export const setToken = (t: string) => { token = t; t ? localStorage.setItem('tl
 export const img = (p: string) => (p.startsWith('http') ? p : BASE + p);
 
 async function call<T>(method: string, url: string, body?: unknown): Promise<T> {
-  const r = await fetch(BASE + url, { method, headers: { 'content-type': 'application/json', ...(token ? { authorization: 'Bearer ' + token } : {}) }, body: body ? JSON.stringify(body) : undefined });
-  if (r.status === 401 && token) { setToken(''); onAuthLost(); }
+  let r:Response;try{r = await fetch(BASE + url, { method, headers: { 'content-type': 'application/json', ...(token ? { authorization: 'Bearer ' + token } : {}) }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(30000) });}catch(e:any){throw new Error(e?.name==='TimeoutError'?'This is taking too long. Please try again.':'Could not connect. Check your connection and try again.');}
+  if(r.status===401&&token&&!url.startsWith('/api/auth/')){ setToken(''); onAuthLost(); }
   const data = r.status === 204 ? null : await r.json().catch(() => null);
   if (!r.ok) throw new Error((data && data.error) || 'Something went wrong');
   return data as T;

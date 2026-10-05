@@ -1,0 +1,12 @@
+import {chromium} from 'playwright';import assert from 'node:assert/strict';
+const b=await chromium.launch();const c=await b.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});const p=await c.newPage();
+await p.goto('http://localhost:18180');await p.getByRole('button',{name:'Join free',exact:true}).click();await p.getByRole('textbox',{name:'Username',exact:true}).fill('touch_'+Date.now());await p.getByRole('textbox',{name:'Password',exact:true}).fill('local-test-only-42');await p.getByRole('button',{name:'Sign up',exact:true}).click();await p.getByRole('button',{name:'I saved it, continue'}).click();await p.getByRole('button',{name:'create',exact:true}).click();await p.locator('input[type=file]').setInputFiles('/home/sandbox/threadline/seed/p1.jpg');await p.getByRole('button',{name:'Share',exact:true}).click();await p.getByRole('button',{name:'Edit profile',exact:true}).waitFor();await p.getByRole('button',{name:'home',exact:true}).click();await p.locator('.media').waitFor();
+const box=await p.locator('.media').boundingBox();const x=box.x+box.width/2,y=box.y+box.height/2;
+await p.touchscreen.tap(x,y);await p.waitForTimeout(100);await p.touchscreen.tap(x,y);await p.getByRole('button',{name:'Unlike',exact:true}).waitFor();assert.equal(await p.locator('.count').innerText(),'1 like');
+await p.screenshot({path:'/downloads/threadline-qa/real-cdp-touch-like.png'});
+await p.touchscreen.tap(x,y);await p.waitForTimeout(100);await p.touchscreen.tap(x,y);await p.waitForTimeout(300);assert.equal(await p.locator('.count').innerText(),'1 like');
+await p.getByRole('button',{name:'Unlike',exact:true}).tap();await p.getByRole('button',{name:'Like',exact:true}).waitFor();assert.equal(await p.locator('.count').innerText(),'0 likes');
+await p.getByRole('button',{name:'Save',exact:true}).tap();await p.getByRole('button',{name:'Unsave',exact:true}).waitFor();await p.getByRole('button',{name:'saved',exact:true}).tap();assert.equal(await p.locator('.grid button').count(),1);
+await p.getByRole('button',{name:'Open photo',exact:false}).click();await p.getByRole('dialog',{name:'Post and comments'}).waitFor();await p.keyboard.press('Escape');assert.equal(await p.getByRole('dialog').count(),0);
+await p.emulateMedia({reducedMotion:'reduce'});const styles=await p.locator('main').evaluate(e=>getComputedStyle(e).animationName);assert.equal(styles,'none');
+console.log('Touch double-tap, no-unlike double-tap, unlike, save, modal Escape, reduced motion: passed');await b.close();

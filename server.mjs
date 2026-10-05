@@ -1,4 +1,3 @@
-// Threadline API server. Zero npm dependencies: Node 22+ (built-in http, sqlite, crypto).
 // Threadline API server (PostgreSQL). Dependency: pg. Node 20+.
 import http from 'node:http';
 import crypto from 'node:crypto';
@@ -42,7 +41,8 @@ CREATE INDEX IF NOT EXISTS idx_likes_post ON likes(post_id);
 CREATE INDEX IF NOT EXISTS idx_saves_post ON saves(post_id);
 CREATE TABLE IF NOT EXISTS notifications(id SERIAL PRIMARY KEY, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, actor INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, type TEXT NOT NULL, post_id INT REFERENCES posts(id) ON DELETE CASCADE, text TEXT NOT NULL DEFAULT '', created BIGINT NOT NULL, seen BOOLEAN NOT NULL DEFAULT FALSE);
 CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(user_id, id);
-ALTER TABLE users ADD COLUMN IF NOT EXISTS recovery TEXT`;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS recovery TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0`;
 
 let pool;
 export async function initDb(p) {
@@ -61,12 +61,12 @@ const hashPw = pw => { const s = crypto.randomBytes(16); return s.toString('hex'
 const newCode = () => { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; const b = crypto.randomBytes(12); let o = ''; for (let i = 0; i < 12; i++) { o += a[b[i] % 32]; if (i % 4 === 3 && i < 11) o += '-'; } return o; };
 const codeHash = (c, h) => crypto.createHash('sha256').update(h.toLowerCase() + ':' + String(c).toUpperCase().replace(/[^A-Z0-9]/g, '')).digest('hex');
 const checkPw = (pw, stored) => { const [s, h] = stored.split(':'); const x = crypto.scryptSync(pw, Buffer.from(s, 'hex'), 64); return crypto.timingSafeEqual(x, Buffer.from(h, 'hex')); };
-const sign = uid => { const body = b64(JSON.stringify({ uid, exp: Date.now() + 30 * 864e5 })); return body + '.' + crypto.createHmac('sha256', SECRET).update(body).digest('base64url'); };
+const sign = (uid, version = 0) => { const body = b64(JSON.stringify({ uid, version, exp: Date.now() + 30 * 864e5 })); return body + '.' + crypto.createHmac('sha256', SECRET).update(body).digest('base64url'); };
 const verify = tok => {
   const [body, sig] = (tok || '').split('.'); if (!body || !sig) return null;
   const good = crypto.createHmac('sha256', SECRET).update(body).digest('base64url');
   if (sig.length !== good.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(good))) return null;
-  const p = JSON.parse(Buffer.from(body, 'base64url').toString()); return p.exp > Date.now() ? p.uid : null;
+  try {const p=JSON.parse(Buffer.from(body,'base64url').toString());return Number.isInteger(p.uid)&&p.exp>Date.now()?{uid:p.uid,version:p.version||0}:null;}catch{return null;}
 };
 
 // ---- rate limit (per IP, in memory)
@@ -140,8 +140,8 @@ route('POST', '/api/auth/reset', false, async ({ body, ip }) => {
   const u = await one('SELECT * FROM users WHERE handle_lc=$1', String(body.handle || '').toLowerCase());
   const ok = u && u.recovery && crypto.timingSafeEqual(Buffer.from(codeHash(body.code || '', u.handle)), Buffer.from(u.recovery));
   if (!ok) bad(401, 'Handle or recovery code is wrong');
-  const code = newCode(); await run('UPDATE users SET pw=$1, recovery=$2 WHERE id=$3', hashPw(pw), codeHash(code, u.handle), u.id);
-  return { data: { token: sign(u.id), user: await publicUser(u, u.id), recoveryCode: code } };
+  const code = newCode(); const updated=await one('UPDATE users SET pw=$1, recovery=$2, session_version=session_version+1 WHERE id=$3 AND recovery=$4 RETURNING *', hashPw(pw), codeHash(code, u.handle), u.id, u.recovery); if(!updated)bad(401,'Handle or recovery code is wrong');
+  return { data: { token: sign(u.id,updated.session_version), user: await publicUser(u, u.id), recoveryCode: code } };
 });
 route('POST', '/api/auth/recovery-code', true, async ({ me, body }) => {
   const u = await one('SELECT * FROM users WHERE id=$1', me); if (!checkPw(String(body.password || ''), u.pw)) bad(401, 'Wrong password');
@@ -152,7 +152,7 @@ route('POST', '/api/auth/login', false, async ({ body, ip }) => {
   const u = await one('SELECT * FROM users WHERE handle_lc=$1', String(body.handle || '').toLowerCase());
   if (!u) { hashPw('x'); bad(401, 'Wrong handle or password'); }
   if (!checkPw(String(body.password || ''), u.pw)) bad(401, 'Wrong handle or password');
-  return { data: { token: sign(u.id), user: await publicUser(u, u.id) } };
+  return { data: { token: sign(u.id,u.session_version), user: await publicUser(u, u.id) } };
 });
 route('GET', '/api/me', true, async ({ me }) => ({ data: await publicUser(await one('SELECT * FROM users WHERE id=$1', me), me) }));
 route('PATCH', '/api/me', true, async ({ me, body }) => {
@@ -178,7 +178,7 @@ route('GET', '/api/explore', true, async ({ me, url }) => {
 });
 route('GET', '/api/saved', true, async ({ me }) => ({ data: { posts: await shapeAll(await q(`${POST_SQL} WHERE p.id IN (SELECT post_id FROM saves WHERE user_id=$1) ORDER BY p.id DESC LIMIT 100`, me), me) } }));
 route('GET', '/api/search', true, async ({ me, url }) => {
-  const s = (url.searchParams.get('q') || '').trim().replace(/[%_\\]/g, ''); if (!s) return { data: { users: [], posts: [] } };
+  const s = (url.searchParams.get('q') || '').trim().replace(/[%\\]/g, ''); if (!s) return { data: { users: [], posts: [] } };
   const rows = await q('SELECT * FROM users WHERE handle_lc LIKE $1 OR lower(name) LIKE $2 LIMIT 20', s.toLowerCase() + '%', '%' + s.toLowerCase() + '%');
   const prow = await q(`${POST_SQL} WHERE lower(p.caption) LIKE $1 ORDER BY p.id DESC LIMIT 30`, '%' + s.toLowerCase() + '%');
   return { data: { users: await Promise.all(rows.map(u => publicUser(u, me))), posts: await shapeAll(prow, me) } };
@@ -258,7 +258,7 @@ route('GET', '/api/notifications', true, async ({ me }) => {
   return { data: { items: rows.map(r => ({ id: r.id, type: r.type, postId: r.post_id, text: r.text, created: r.created, seen: r.seen, user: { handle: r.handle, name: r.name, avatar: r.avatar ? '/uploads/' + r.avatar : null }, image: r.image ? '/uploads/' + r.image : null })), unread: await count('SELECT COUNT(*) c FROM notifications WHERE user_id=$1 AND NOT seen', me) } };
 });
 route('POST', '/api/notifications/read', true, async ({ me }) => { await run('UPDATE notifications SET seen=TRUE WHERE user_id=$1 AND NOT seen', me); return { status: 204 }; });
-route('GET', '/api/metrics', false, async ({ ip }) => ({ data: { uptimeSec: Math.round(process.uptime()), requests: stats.n, errors5xx: stats.e5, errors4xx: stats.e4, avgMs: stats.n ? Math.round(stats.ms / stats.n) : 0, memMB: Math.round(process.memoryUsage().rss / 1048576), version: '2.0' } }));
+route('GET', '/api/metrics', false, async ({ ip }) => ({ data: { uptimeSec: Math.round(process.uptime()), requests: stats.n, errors5xx: stats.e5, errors4xx: stats.e4, avgMs: stats.n ? Math.round(stats.ms / stats.n) : 0, memMB: Math.round(process.memoryUsage().rss / 1048576), version: '2.1' } }));
 route('GET', '/api/health', false, async () => { await one('SELECT 1 x'); return { data: { ok: true } }; });
 
 const readBody = (req, max = 12 * 1024 * 1024) => new Promise((res, rej) => {
@@ -290,13 +290,13 @@ export const server = http.createServer(async (req, res) => {
       let f = path.join(PUBLIC, path.normalize(decodeURIComponent(url.pathname)).replace(/^(\.\.[\/\\])+/, ''));
       if (!f.startsWith(PUBLIC) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) f = path.join(PUBLIC, 'index.html');
       const ext = path.extname(f);
-      res.writeHead(200, { ...headers, 'content-type': STATIC_MIME[ext] || 'application/octet-stream', 'cache-control': 'no-cache' });
-      return fs.createReadStream(f).pipe(res);
+      if (['.html','.js','.css','.svg','.json','.webmanifest'].includes(ext)&&/\bgzip\b/.test(req.headers['accept-encoding']||'')) { const stream=zlib.createGzip();res.writeHead(200,{...headers,'content-type':STATIC_MIME[ext]||'application/octet-stream','cache-control':'no-cache','content-encoding':'gzip',vary:'accept-encoding'});fs.createReadStream(f).pipe(stream).pipe(res);return; }
+      res.writeHead(200,{...headers,'content-type':STATIC_MIME[ext]||'application/octet-stream','cache-control':'no-cache'});return fs.createReadStream(f).pipe(res);
     }
     for (const r of routes) {
       if (r.method !== req.method) continue; const m = r.re.exec(url.pathname); if (!m) continue;
       let me = null;
-      if (r.auth) { me = verify((req.headers.authorization || '').replace(/^Bearer /, '')); if (!me || !(await one('SELECT 1 x FROM users WHERE id=$1', me))) return send(401, { error: 'Sign in required' }); }
+      if (r.auth) { const auth=verify((req.headers.authorization||'').replace(/^Bearer /,'')); const user=auth&&await one('SELECT session_version FROM users WHERE id=$1',auth.uid);if(!user||Number(user.session_version)!==auth.version)return send(401,{error:'Sign in required'});me=auth.uid; }
       const body = ['POST', 'PATCH', 'PUT'].includes(req.method) ? await readBody(req) : {};
       const out = await r.fn({ me, body, url, ip, params: { ...m.groups } });
       return send(out.status || 200, out.data);
@@ -307,6 +307,6 @@ export const server = http.createServer(async (req, res) => {
     console.error(e); send(500, { error: 'Internal error' });
   }
 });
-if (process.argv[1] === fileURLToPath(import.meta.url)) { await initDb(); if (process.env.SEED === '1') { try { await (await import('./seed.mjs')).seed({ q, one, run, hashPw, dir: path.join(__dir, 'seed'), MIME }); server.listen(PORT, () => console.log(`Threadline API on :${PORT}`)); } catch (e) { console.error('Seed skipped:', e.message); } } }
+if (process.argv[1] === fileURLToPath(import.meta.url)) { await initDb(); if (process.env.SEED === '1') { try { await (await import('./seed.mjs')).seed({ q, one, run, hashPw, dir: path.join(__dir, 'seed'), MIME }); } catch (e) { console.error('Seed skipped:', e.message); } } server.listen(PORT, () => console.log(`Threadline API on :${PORT}`)); }
 
 for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 8000).unref(); });
