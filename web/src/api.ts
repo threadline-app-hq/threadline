@@ -33,6 +33,7 @@ export const api = {
   comments: (id: number) => call<{ comments: Comment[] }>('GET', `/api/posts/${id}/comments`),
   comment: (id: number, text: string) => call<Post>('POST', `/api/posts/${id}/comments`, { text }),
   createPost: (image: string, caption: string) => call<Post>('POST', '/api/posts', { image, caption }),
+  updateMe: (name: string, bio: string) => call<User>('PATCH', '/api/me', { name, bio }),
   notifications: () => call<{ items: Notif[]; unread: number }>('GET', '/api/notifications'),
   readNotifications: () => call<null>('POST', '/api/notifications/read'),
   deletePost: (id: number) => call<null>('DELETE', `/api/posts/${id}`),
