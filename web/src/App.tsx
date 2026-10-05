@@ -18,14 +18,14 @@ const hue = (s: string) => [...s].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 
 const ring = (h: number) => `conic-gradient(from 200deg, hsl(${h} 90% 60%), hsl(${h + 60} 90% 58%), hsl(${h + 120} 90% 60%), hsl(${h} 90% 60%))`;
 const ago = (t: number) => { const s = Math.max(1, (Date.now() - t) / 1000); return s < 60 ? 'now' : s < 3600 ? Math.floor(s / 60) + 'm' : s < 86400 ? Math.floor(s / 3600) + 'h' : Math.floor(s / 86400) + 'd'; };
 
-function Avatar({ handle, name, size = 40, story }: { handle: string; name?: string; size?: number; story?: boolean }) {
+function Avatar({ handle, name, size = 40, story, src }: { handle: string; name?: string; size?: number; story?: boolean; src?: string | null }) {
   const h = hue(handle);
   return <span className="av-wrap" style={{ width: size + (story ? 8 : 0), height: size + (story ? 8 : 0), background: story ? ring(h) : 'transparent' }}>
-    <span className="av" style={{ width: size, height: size, fontSize: size * 0.4, background: `linear-gradient(135deg, hsl(${h} 70% 62%), hsl(${h + 50} 70% 48%))` }}>{(name || handle)[0].toUpperCase()}</span></span>;
+    <span className="av" style={{ width: size, height: size, fontSize: size * 0.4, background: src ? `center/cover url(${img(src)})` : `linear-gradient(135deg, hsl(${h} 70% 62%), hsl(${h + 50} 70% 48%))` }}>{src ? '' : (name || handle)[0].toUpperCase()}</span></span>;
 }
 
-async function toDataUrl(file: File): Promise<string> {
-  const bmp = await createImageBitmap(file); const max = 1440; const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+async function toDataUrl(file: File, maxSide = 1440): Promise<string> {
+  const bmp = await createImageBitmap(file); const max = maxSide; const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
   const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
   c.getContext('2d')!.drawImage(bmp, 0, 0, c.width, c.height); return c.toDataURL('image/jpeg', 0.85);
 }
@@ -53,7 +53,7 @@ function PostCard({ post, me, onChange, onOpen, onUser, onDelete }: { post: Post
   const dbl = () => { setBurst(true); setTimeout(() => setBurst(false), 700); if (!post.liked) like(); };
   const send = async (e: React.FormEvent) => { e.preventDefault(); const t = text.trim(); if (!t) return; setText(''); act(() => api.comment(post.id, t)); };
   return <article className="post">
-    <header><button onClick={() => onUser(post.user.handle)}><Avatar handle={post.user.handle} name={post.user.name} size={32} /></button><div><b>{post.user.handle}</b></div><span className="ago">{ago(post.created)}</span>
+    <header><button onClick={() => onUser(post.user.handle)}><Avatar handle={post.user.handle} name={post.user.name} size={32} src={post.user.avatar} /></button><div><b>{post.user.handle}</b></div><span className="ago">{ago(post.created)}</span>
       {post.user.id === me.id && <button className="out" aria-label="Delete post" onClick={() => confirm('Delete this post?') && onDelete(post.id)}><Ic d={I.trash} size={18} /></button>}</header>
     <div className="media" onDoubleClick={dbl}><img src={img(post.image)} alt={post.caption || 'Photo'} loading="lazy" />{burst && <span className="burst" aria-hidden><Ic d={I.heart} fill size={90} /></span>}</div>
     <div className="actions">
@@ -99,10 +99,11 @@ function More({ on, busy, onVisible }: { on: boolean; busy: boolean; onVisible: 
   return on ? <div ref={ref} className="more">{busy && <span className="spinner" />}</div> : null;
 }
 function EditProfile({ me, onClose, onSaved }: { me: User; onClose: () => void; onSaved: (u: User) => void }) {
-  const [name, setName] = useState(me.name); const [bio, setBio] = useState(me.bio || ''); const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
-  const save = async (e: React.FormEvent) => { e.preventDefault(); setBusy(true); setErr(''); try { onSaved(await api.updateMe(name.trim() || me.handle, bio)); } catch (x: any) { setErr(x.message); setBusy(false); } };
+  const [name, setName] = useState(me.name); const [bio, setBio] = useState(me.bio || ''); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [av, setAv] = useState<string | undefined>();
+  const pick = async (f?: File) => { if (!f) return; try { setAv(await toDataUrl(f, 400)); } catch { setErr('Could not read that image'); } };
+  const save = async (e: React.FormEvent) => { e.preventDefault(); setBusy(true); setErr(''); try { onSaved(await api.updateMe(name.trim() || me.handle, bio, av)); } catch (x: any) { setErr(x.message); setBusy(false); } };
   return <div className="scrim" onClick={onClose}><form className="modal editm" onClick={e => e.stopPropagation()} onSubmit={save}>
-    <h3>Edit profile</h3><label>Name<input value={name} maxLength={60} onChange={e => setName(e.target.value)} /></label>
+    <h3>Edit profile</h3><label className="avpick"><Avatar handle={me.handle} name={me.name} size={72} src={av || me.avatar} /><span>Change photo</span><input type="file" accept="image/*" hidden onChange={e => pick(e.target.files?.[0])} /></label><label>Name<input value={name} maxLength={60} onChange={e => setName(e.target.value)} /></label>
     <label>Bio<textarea value={bio} maxLength={200} rows={3} onChange={e => setBio(e.target.value)} /></label><small className="mut">{bio.length}/200</small>
     {err && <p className="err">{err}</p>}<div className="row"><button type="button" className="ghost" onClick={onClose}>Cancel</button><button className="primary" disabled={busy}>{busy ? 'Saving…' : 'Save'}</button></div></form></div>;
 }
@@ -150,19 +151,19 @@ export function App() {
         {feed.length === 0 && loading && [0, 1].map(i => <div key={i} className="post sk"><div className="sk-h"><i /><b /></div><div className="sk-m" /><div className="sk-l" /></div>)}
         {feed.length === 0 && !loading && <div className="empty card"><div className="empty-ic"><Ic d={I.heart} size={30} /></div><p><b>Your feed is empty.</b></p><p>Follow people on Explore, or share your first photo.</p><p><button className="primary sm" onClick={() => setTab('explore')}>Find people</button></p></div>}
         {feed.map(card)}<More on={!!feedNext} busy={more} onVisible={() => loadMore('feed')} /></section>
-        <aside className="rail"><div className="meu"><Avatar handle={me.handle} name={me.name} size={46} /><div><b>{me.handle}</b><small>{me.name}</small></div></div></aside></div>}
+        <aside className="rail"><div className="meu"><Avatar handle={me.handle} name={me.name} size={46} src={me.avatar} /><div><b>{me.handle}</b><small>{me.name}</small></div></div></aside></div>}
       {tab === 'explore' && <div className="wide"><div className="search"><Ic d={I.search} size={18} /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Search people and posts" /></div>
-        {q ? <>{results.filter(u => u.id !== me.id).map(u => <div key={u.id} className="sug big"><button onClick={() => loadProfile(u.handle)}><Avatar handle={u.handle} name={u.name} size={44} /></button><div><b>{u.handle}</b><small>{u.name} · {u.followers} followers</small></div><button className={u.followedByMe ? 'ghost' : 'primary sm'} onClick={() => follow(u)}>{u.followedByMe ? 'Following' : 'Follow'}</button></div>)}
+        {q ? <>{results.filter(u => u.id !== me.id).map(u => <div key={u.id} className="sug big"><button onClick={() => loadProfile(u.handle)}><Avatar handle={u.handle} name={u.name} size={44} src={u.avatar} /></button><div><b>{u.handle}</b><small>{u.name} · {u.followers} followers</small></div><button className={u.followedByMe ? 'ghost' : 'primary sm'} onClick={() => follow(u)}>{u.followedByMe ? 'Following' : 'Follow'}</button></div>)}
           {postHits.length > 0 && <><h3 className="hits">Posts</h3><Grid posts={postHits} onOpen={setOpen} /></>}
           {!results.length && !postHits.length && <p className="empty">Nothing found for "{q}".</p>}</> : <><Grid posts={explore} onOpen={setOpen} /><More on={!!exploreNext} busy={more} onVisible={() => loadMore('explore')} /></>}</div>}
       {tab === 'create' && <Create done={() => { say('Posted'); loadProfile(me.handle); }} />}
       {tab === 'activity' && <div className="wide"><h2>Activity</h2>{notifs.length === 0 && <p className="empty">Likes, comments and new followers will show up here.</p>}
         {notifs.map((n, i) => <div key={n.id} className={'notif' + (n.seen ? '' : ' new')} style={{ animationDelay: Math.min(i, 10) * 40 + 'ms' }}>
-          <button onClick={() => loadProfile(n.user.handle)}><Avatar handle={n.user.handle} name={n.user.name} size={44} /></button>
+          <button onClick={() => loadProfile(n.user.handle)}><Avatar handle={n.user.handle} name={n.user.name} size={44} src={n.user.avatar} /></button>
           <div><b>{n.user.handle}</b> {n.type === 'like' ? 'liked your photo.' : n.type === 'comment' ? <>commented: <span className="mut">{n.text}</span></> : 'started following you.'} <small>{ago(n.created)}</small></div>
           {n.image && <img src={img(n.image)} alt="" />}</div>)}</div>}
       {tab === 'saved' && <div className="wide"><h2>Saved</h2><Grid posts={saved} onOpen={setOpen} /></div>}
-      {tab === 'profile' && prof && <div className="wide"><div className="prof"><Avatar handle={prof.user.handle} name={prof.user.name} size={96} story /><div><h2>{prof.user.handle}
+      {tab === 'profile' && prof && <div className="wide"><div className="prof"><Avatar handle={prof.user.handle} name={prof.user.name} size={96} story src={prof.user.avatar} /><div><h2>{prof.user.handle}
         {prof.user.id === me.id && <button className="ghost" onClick={() => setEditing(true)}>Edit profile</button>}
         {prof.user.id !== me.id && <button className={prof.user.followedByMe ? 'ghost' : 'primary sm'} onClick={() => follow(prof.user)}>{prof.user.followedByMe ? 'Following' : 'Follow'}</button>}</h2>
         <div className="stats"><span><b>{prof.user.posts}</b> posts</span><span><b>{prof.user.followers}</b> followers</span><span><b>{prof.user.following}</b> following</span></div><p><b>{prof.user.name}</b><br />{prof.user.bio}</p></div></div><Grid posts={prof.posts} onOpen={setOpen} /></div>}
