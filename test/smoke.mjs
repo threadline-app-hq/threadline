@@ -21,8 +21,10 @@ try {
   await call('POST', '/api/users/alice/follow', null, b.token);
   assert.equal((await call('GET', '/api/feed', null, b.token)).j.posts.length, 1);
   const id = post.j.id;
-  assert.equal((await call('POST', `/api/posts/${id}/like`, null, b.token)).j.likes, 1);
-  assert.equal((await call('POST', `/api/posts/${id}/like`, null, b.token)).j.likes, 1);
+  assert.equal((await call("POST", `/api/posts/${id}/like`, null, b.token)).j.likes, 1);
+  assert.equal((await call("POST", `/api/posts/${id}/like`, null, b.token)).j.likes, 1);
+  { const n = (await call('GET', '/api/notifications', null, a.token)).j; assert.equal(n.unread, 2); assert.deepEqual(n.items.map(i => i.type).sort(), ['follow', 'like']); assert.equal((await call('POST', '/api/notifications/read', null, a.token)).s, 204); assert.equal((await call('GET', '/api/notifications', null, a.token)).j.unread, 0); }
+  assert.equal((await call('GET', '/api/metrics')).j.version, '2.0');
   assert.equal((await call('DELETE', `/api/posts/${id}/like`, null, b.token)).j.likes, 0);
   assert.equal((await call('POST', `/api/posts/${id}/comments`, { text: 'nice' }, b.token)).j.commentCount, 1);
   assert.equal((await call('POST', `/api/posts/${id}/save`, null, b.token)).j.saved, true);
