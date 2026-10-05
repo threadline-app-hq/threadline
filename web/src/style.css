@@ -288,3 +288,7 @@ html,body{background:#f6f3ed}
 /* Identity and actions have their own lines, including a full-length handle. */
 .prof{align-items:flex-start}.profile-details{min-width:0;flex:1}.prof h2{display:block;margin-bottom:16px}.profile-handle{overflow-wrap:anywhere;line-height:1.3}.profile-controls{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:22px}.ig .profile-controls button{min-height:44px}.prof .profile-name,.prof .profile-bio{overflow-wrap:anywhere}.prof>.av-wrap{margin-top:2px}
 @media(max-width:700px){.prof>.av-wrap{width:64px!important;height:64px!important}.prof>.av-wrap>.av{width:64px!important;height:64px!important;font-size:26px!important}.prof h2{font-size:22px;letter-spacing:-.4px;margin-bottom:12px}.profile-controls{gap:6px;margin-bottom:18px}.profile-controls button{font-size:12px!important;padding-inline:12px!important}.stats{gap:8px 14px}.prof{padding-bottom:28px}}
+
+/* A small collection fills its page; phone thumbnails stay large enough to read. */
+.grid.pair{grid-template-columns:repeat(2,minmax(0,1fr))}.grid.pair button{aspect-ratio:4/5}.grid.pair img{object-fit:cover}
+@media(max-width:700px){.grid:not(.single){grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.grid:not(.single) button{aspect-ratio:4/5}}

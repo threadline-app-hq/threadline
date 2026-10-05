@@ -100,7 +100,7 @@ function Modal({ post, me, onChange, onClose, onUser, onDelete }: { post: Post; 
 
 function GridImage({src}:{src:string}){const[failed,setFailed]=useState(false);useEffect(()=>setFailed(false),[src]);return failed?<span className="grid-failed"><Ic d={I.comment} size={22}/><small>Photo unavailable</small></span>:<img src={img(src)} alt="" loading="lazy" onError={()=>setFailed(true)}/>;}
 const Grid = ({ posts, onOpen }: { posts: Post[]; onOpen: (p: Post) => void }) => !posts.length ? <p className="empty">Nothing here yet.</p> :
-  <div className={"grid"+(posts.length===1?" single":"")}>{posts.map(p => <button aria-label={"Open photo by " + p.user.handle + (p.caption ? ": " + p.caption : "")} key={p.id} onClick={() => onOpen(p)}><GridImage src={p.image}/>
+  <div className={"grid"+(posts.length===1?" single":posts.length===2?" pair":"")}>{posts.map(p => <button aria-label={"Open photo by " + p.user.handle + (p.caption ? ": " + p.caption : "")} key={p.id} onClick={() => onOpen(p)}><GridImage src={p.image}/>
     <span className="hover"><Ic d={I.heart} fill size={18} /> {p.likes} <Ic d={I.comment} fill size={18} /> {p.commentCount}</span></button>)}</div>;
 
 function Create({ done }: { done: () => void }) {
