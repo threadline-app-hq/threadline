@@ -41,11 +41,11 @@ function Auth({ onAuth, initial = 'login', onBack }: { onAuth: (u: User) => void
     <button type="button" className="ghost" onClick={() => navigator.clipboard?.writeText(shown.code)}>Copy code</button>
     <button className="primary" onClick={() => onAuth(shown.user)}>I saved it, continue</button></div></div>;
   return <div className="authwrap"><form className="authcard" onSubmit={submit}>
-    {onBack && <button type="button" className="back" onClick={onBack}>← Back</button>}<h1 className="logo">Threadline <span className="v2">2.0</span></h1><p className="tag">Photos from people you care about.</p>
-    <input placeholder="Username" value={handle} onChange={e => setHandle(e.target.value)} autoCapitalize="none" autoComplete="username" required />
-    {mode === 'signup' && <input placeholder="Full name" value={name} onChange={e => setName(e.target.value)} autoComplete="name" />}
-    {mode === 'reset' && <input placeholder="Recovery code (XXXX-XXXX-XXXX)" value={code} onChange={e => setCode(e.target.value)} autoCapitalize="characters" autoComplete="off" required />}
-    <input placeholder={mode === 'reset' ? 'New password' : 'Password'} type="password" value={pw} onChange={e => setPw(e.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required minLength={mode === 'login' ? 1 : 8} />
+    {onBack && <button type="button" className="back" onClick={onBack}>← Back</button>}<h1 className="logo">Threadline <span className="v2">2.0</span></h1><p className="tag">Your people. Your perspective.</p>
+    <input aria-label="Username" placeholder="Username" value={handle} onChange={e => setHandle(e.target.value)} autoCapitalize="none" autoComplete="username" required />
+    {mode === 'signup' && <input aria-label="Full name" placeholder="Full name" value={name} onChange={e => setName(e.target.value)} autoComplete="name" />}
+    {mode === 'reset' && <input aria-label="Recovery code" placeholder="Recovery code (XXXX-XXXX-XXXX)" value={code} onChange={e => setCode(e.target.value)} autoCapitalize="characters" autoComplete="off" required />}
+    <input aria-label={mode === 'reset' ? 'New password' : 'Password'} placeholder={mode === 'reset' ? 'New password' : 'Password'} type="password" value={pw} onChange={e => setPw(e.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required minLength={mode === 'login' ? 1 : 8} />
     {err && <p className="err" role="alert">{err}</p>}
     <button className="primary" disabled={busy}>{busy ? 'One moment…' : mode === 'login' ? 'Log in' : mode === 'reset' ? 'Reset password' : 'Sign up'}</button>
     {mode === 'login' && <p className="swap"><button type="button" onClick={() => { setMode('reset'); setErr(''); }}>Forgot password?</button></p>}
@@ -54,48 +54,55 @@ function Auth({ onAuth, initial = 'login', onBack }: { onAuth: (u: User) => void
 }
 
 function PostCard({ post, me, onChange, onOpen, onUser, onDelete }: { post: Post; me: User; onChange: (p: Post) => void; onOpen?: () => void; onUser: (h: string) => void; onDelete: (id: number) => void }) {
-  const [text, setText] = useState(''); const [burst, setBurst] = useState(false); const [err, setErr] = useState('');
-  const act = async (f: () => Promise<Post>) => { try { onChange(await f()); } catch (e: any) { setErr(e.message); } };
+  const [text, setText] = useState(''); const [burst, setBurst] = useState(false); const [err, setErr] = useState(''); const [pending, setPending] = useState(false); const tapped = useRef({time:0,x:0,y:0}); const burstTimer = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(burstTimer.current), []);
+  const act = async (f: () => Promise<Post>) => { if (pending) return; setPending(true); setErr(''); try { onChange(await f()); return true; } catch (e: any) { setErr(e.message); return false; } finally { setPending(false); } };
   const like = () => act(() => api.like(post.id, !post.liked));
-  const dbl = () => { setBurst(true); setTimeout(() => setBurst(false), 700); if (!post.liked) like(); };
-  const send = async (e: React.FormEvent) => { e.preventDefault(); const t = text.trim(); if (!t) return; setText(''); act(() => api.comment(post.id, t)); };
+  const dbl = () => { setBurst(true); clearTimeout(burstTimer.current); burstTimer.current = setTimeout(() => setBurst(false), 700); if (!post.liked) like(); };
+  const send = async (e: React.FormEvent) => { e.preventDefault(); const t = text.trim(); if (!t) return; if (await act(() => api.comment(post.id, t))) setText(''); };
   return <article className="post">
-    <header><button onClick={() => onUser(post.user.handle)}><Avatar handle={post.user.handle} name={post.user.name} size={32} src={post.user.avatar} /></button><div><b>{post.user.handle}</b></div><span className="ago">{ago(post.created)}</span>
+    <header><button aria-label={"Open profile of " + post.user.handle} onClick={() => onUser(post.user.handle)}><Avatar handle={post.user.handle} name={post.user.name} size={32} src={post.user.avatar} /></button><div><b>{post.user.handle}</b></div><span className="ago">{ago(post.created)}</span>
       {post.user.id === me.id && <button className="out" aria-label="Delete post" onClick={() => confirm('Delete this post?') && onDelete(post.id)}><Ic d={I.trash} size={18} /></button>}</header>
-    <div className="media" onDoubleClick={dbl}><img src={img(post.image)} alt={post.caption || 'Photo'} loading="lazy" />{burst && <span className="burst" aria-hidden><Ic d={I.heart} fill size={90} /></span>}</div>
+    <div className="media" onDoubleClick={e => { if (e.nativeEvent instanceof MouseEvent && !(e.nativeEvent as any).sourceCapabilities?.firesTouchEvents) dbl(); }} onPointerUp={e => { if (e.pointerType !== 'touch') return; const now=performance.now(); const last=tapped.current; if (now-last.time<300 && Math.abs(e.clientX-last.x)<30 && Math.abs(e.clientY-last.y)<30) { dbl(); tapped.current={time:0,x:0,y:0}; } else tapped.current={time:now,x:e.clientX,y:e.clientY}; }}><img src={img(post.image)} alt={post.caption || 'Photo'} loading="lazy" />{burst && <span className="burst" aria-hidden><Ic d={I.heart} fill size={90} /></span>}</div>
     <div className="actions">
-      <button key={'l' + post.liked} className={post.liked ? 'liked pulse' : ''} onClick={like} aria-label="Like"><Ic d={I.heart} fill={post.liked} /></button>
-      <button onClick={onOpen} aria-label="Comments"><Ic d={I.comment} /></button>
-      <button key={'s' + post.saved} className={'push' + (post.saved ? ' pulse' : '')} onClick={() => act(() => api.save(post.id, !post.saved))} aria-label="Save"><Ic d={I.bookmark} fill={post.saved} /></button>
+      <button key={'l' + post.liked} className={post.liked ? 'liked pulse' : ''} disabled={pending} onClick={like} aria-label={post.liked ? "Unlike" : "Like"} aria-pressed={post.liked}><Ic d={I.heart} fill={post.liked} /></button>
+      <button onClick={onOpen} aria-label="View comments"><Ic d={I.comment} /></button>
+      <button key={'s' + post.saved} className={'push' + (post.saved ? ' pulse' : '')} onClick={() => act(() => api.save(post.id, !post.saved))} disabled={pending} aria-label={post.saved ? "Unsave" : "Save"} aria-pressed={post.saved}><Ic d={I.bookmark} fill={post.saved} /></button>
     </div>
     <div className="meta"><b key={post.likes} className="count">{post.likes.toLocaleString()} {post.likes === 1 ? 'like' : 'likes'}</b>
       {post.caption && <p><b>{post.user.handle}</b> {post.caption}</p>}
       {post.comments.map(c => <p key={c.id}><b>{c.handle}</b> {c.text}</p>)}
       {post.commentCount > post.comments.length && <button className="link" onClick={onOpen}>View all {post.commentCount} comments</button>}
       {err && <p className="err">{err}</p>}</div>
-    <form className="comment" onSubmit={send}><input value={text} onChange={e => setText(e.target.value)} placeholder="Add a comment…" maxLength={500} /><button disabled={!text.trim()}>Post</button></form>
+    <form className="comment" onSubmit={send}><input value={text} onChange={e => setText(e.target.value)} aria-label="Add a comment" placeholder="Add a comment…" maxLength={500} /><button disabled={!text.trim() || pending}>Post</button></form>
   </article>;
 }
 
+function useDialog(onClose: () => void) {
+  const ref=useRef<HTMLDivElement>(null);
+  const close=useRef(onClose);close.current=onClose;
+  useEffect(()=>{const old=document.activeElement as HTMLElement;const overflow=document.body.style.overflow;document.body.style.overflow='hidden';const el=ref.current;el?.focus();
+    const key=(e:KeyboardEvent)=>{if(e.key==='Escape'){e.preventDefault();close.current();}if(e.key==='Tab'&&el){const a=Array.from(el.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]):not([type=hidden]),textarea,a[href]')).filter(x=>x.offsetParent!==null);if(!a.length){e.preventDefault();return;}if(e.shiftKey&&(document.activeElement===a[0]||document.activeElement===el)){e.preventDefault();a.at(-1)?.focus();}else if(!e.shiftKey&&(document.activeElement===a.at(-1)||document.activeElement===el)){e.preventDefault();a[0].focus();}}};document.addEventListener('keydown',key);return()=>{document.body.style.overflow=overflow;document.removeEventListener('keydown',key);old?.focus();};},[]);return ref;
+}
 function Modal({ post, me, onChange, onClose, onUser, onDelete }: { post: Post; me: User; onChange: (p: Post) => void; onClose: () => void; onUser: (h: string) => void; onDelete: (id: number) => void }) {
-  const [all, setAll] = useState<Comment[]>([]);
+  const dialog=useDialog(onClose); const [all, setAll] = useState<Comment[]>([]);
   useEffect(() => { api.comments(post.id).then(r => setAll(r.comments)).catch(() => {}); }, [post.id, post.commentCount]);
   useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
-  return <div className="scrim" onClick={onClose}><div className="modal" onClick={e => e.stopPropagation()}>
+  return <div className="scrim" onClick={onClose}><div ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Post and comments" className="modal" onClick={e => e.stopPropagation()}>
     <button className="x" onClick={onClose} aria-label="Close"><Ic d={I.close} /></button>
     <PostCard post={{ ...post, comments: all.length ? all : post.comments }} me={me} onChange={onChange} onUser={h => { onClose(); onUser(h); }} onDelete={id => { onClose(); onDelete(id); }} /></div></div>;
 }
 
 const Grid = ({ posts, onOpen }: { posts: Post[]; onOpen: (p: Post) => void }) => !posts.length ? <p className="empty">Nothing here yet.</p> :
-  <div className="grid">{posts.map(p => <button key={p.id} onClick={() => onOpen(p)}><img src={img(p.image)} alt="" loading="lazy" />
+  <div className="grid">{posts.map(p => <button aria-label={"Open photo by " + p.user.handle + (p.caption ? ": " + p.caption : "")} key={p.id} onClick={() => onOpen(p)}><img src={img(p.image)} alt="" loading="lazy" />
     <span className="hover"><Ic d={I.heart} fill size={18} /> {p.likes} <Ic d={I.comment} fill size={18} /> {p.commentCount}</span></button>)}</div>;
 
 function Create({ done }: { done: () => void }) {
   const [src, setSrc] = useState<string>(); const [cap, setCap] = useState(''); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const ref = useRef<HTMLInputElement>(null);
-  return <div className="create"><h2>New post</h2>
-    <div className={'drop' + (src ? ' has' : '')} onClick={() => ref.current?.click()}>{src ? <img src={src} alt="Preview" /> : <><Ic d={I.plus} size={36} /><p>Choose a photo</p></>}</div>
+  return <div className="create"><div className="section-heading"><p className="eyebrow">Make a moment</p><h2>New post</h2><p>Something small. Something worth sharing.</p></div>
+    <button type="button" aria-label="Choose a photo" className={'drop' + (src ? ' has' : '')} onClick={() => ref.current?.click()}>{src ? <img src={src} alt="Preview" /> : <><Ic d={I.plus} size={36} /><p>Choose a photo</p><small>JPG, PNG or WebP</small></>}</button>
     <input ref={ref} type="file" accept="image/*" hidden onChange={async e => { const f = e.target.files?.[0]; if (f) { try { setSrc(await toDataUrl(f)); setErr(''); } catch { setErr('That file could not be read as an image.'); } } }} />
-    <textarea placeholder="Write a caption…" value={cap} onChange={e => setCap(e.target.value)} rows={3} maxLength={2200} />
+    <textarea aria-label="Caption" placeholder="Write a caption…" value={cap} onChange={e => setCap(e.target.value)} rows={3} maxLength={2200} />
     {err && <p className="err">{err}</p>}
     <button className="primary" disabled={!src || busy} onClick={async () => { setBusy(true); try { await api.createPost(src!, cap); done(); } catch (e: any) { setErr(e.message); setBusy(false); } }}>{busy ? 'Sharing…' : 'Share'}</button></div>;
 }
@@ -112,8 +119,8 @@ function Messages({ me, to, setTo, onUser, onRead }: { me: User; to: string | nu
     <div className="dm-body">{thread && thread.messages.length === 0 && <p className="empty">Say hi to {thread.user.name}.</p>}
       {thread?.messages.map(m => <div key={m.id} className={'bub ' + (m.mine ? 'me' : 'them')}>{m.text}<small>{ago(m.created)}</small></div>)}<div ref={end} /></div>
     {err && <p className="err" role="alert">{err}</p>}
-    <form className="dm-in" onSubmit={send}><input value={text} onChange={e => setText(e.target.value)} placeholder="Message…" maxLength={1000} /><button className="primary" disabled={!text.trim()}>Send</button></form></div>;
-  return <div className="wide"><h2>Messages</h2>
+    <form className="dm-in" onSubmit={send}><input value={text} onChange={e => setText(e.target.value)} aria-label="Message" placeholder="Message…" maxLength={1000} /><button className="primary" disabled={!text.trim()}>Send</button></form></div>;
+  return <div className="wide"><div className="section-heading"><p className="eyebrow">Stay close</p><h2>Messages</h2><p>A little conversation goes a long way.</p></div>
     {convos.length === 0 && <p className="empty">No conversations yet. Open someone's profile and tap Message.</p>}
     {convos.map(c => <button key={c.user.id} className={'convo' + (c.unread ? ' new' : '')} onClick={() => setTo(c.user.handle)}><Avatar handle={c.user.handle} name={c.user.name} size={48} src={c.user.avatar} /><div><b>{c.user.handle}</b><span>{c.mine ? 'You: ' : ''}{c.text}</span></div>{c.unread > 0 && <i className="badge static">{c.unread}</i>}<small>{ago(c.created)}</small></button>)}</div>;
 }
@@ -134,10 +141,10 @@ function More({ on, busy, onVisible }: { on: boolean; busy: boolean; onVisible: 
   return on ? <div ref={ref} className="more">{busy && <span className="spinner" />}</div> : null;
 }
 function EditProfile({ me, onClose, onSaved }: { me: User; onClose: () => void; onSaved: (u: User) => void }) {
-  const [name, setName] = useState(me.name); const [bio, setBio] = useState(me.bio || ''); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [av, setAv] = useState<string | undefined>();
+  const dialog=useDialog(onClose); const [name, setName] = useState(me.name); const [bio, setBio] = useState(me.bio || ''); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [av, setAv] = useState<string | undefined>();
   const pick = async (f?: File) => { if (!f) return; try { setAv(await toDataUrl(f, 400)); } catch { setErr('Could not read that image'); } };
   const save = async (e: React.FormEvent) => { e.preventDefault(); setBusy(true); setErr(''); try { onSaved(await api.updateMe(name.trim() || me.handle, bio, av)); } catch (x: any) { setErr(x.message); setBusy(false); } };
-  return <div className="scrim" onClick={onClose}><form className="modal editm" onClick={e => e.stopPropagation()} onSubmit={save}>
+  return <div className="scrim" onClick={onClose}><form ref={dialog as any} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Edit profile" className="modal editm" onClick={e => e.stopPropagation()} onSubmit={save}>
     <h3>Edit profile</h3><label className="avpick"><Avatar handle={me.handle} name={me.name} size={72} src={av || me.avatar} /><span>Change photo</span><input type="file" accept="image/*" hidden onChange={e => pick(e.target.files?.[0])} /></label><label>Name<input value={name} maxLength={60} onChange={e => setName(e.target.value)} /></label>
     <label>Bio<textarea value={bio} maxLength={200} rows={3} onChange={e => setBio(e.target.value)} /></label><small className="mut">{bio.length}/200</small>
     <button type="button" className="ghost" onClick={async () => { const p = window.prompt('Enter your password to create a new recovery code'); if (!p) return; try { const r = await api.newRecovery(p); window.alert('Your new recovery code (write it down, the old one no longer works):\n\n' + r.recoveryCode); } catch (x: any) { setErr(x.message); } }}>Get a new recovery code</button>
@@ -160,7 +167,7 @@ export function App() {
   useEffect(() => { if (me) { refresh(); if (tab === 'home') loadStories(); } }, [me, tab]);
   useEffect(() => { if (!me) return; const pull = () => api.notifications().then(r => { setNotifs(r.items); setUnread(r.unread); }).catch(() => {}); api.conversations().then(r => setDmUnread(r.unread)).catch(() => {}); pull(); const t = setInterval(pull, 30000); return () => clearInterval(t); }, [me]);
   useEffect(() => { if (tab === 'activity' && unread) { const t = setTimeout(() => api.readNotifications().then(() => setUnread(0)).catch(() => {}), 1200); return () => clearTimeout(t); } }, [tab, unread]);
-  useEffect(() => { if (!q.trim()) { setResults([]); return; } const t = setTimeout(() => api.search(q).then(r => { setResults(r.users); setPostHits(r.posts || []); }).catch(() => {}), 250); return () => clearTimeout(t); }, [q]);
+  useEffect(() => { let active=true; setResults([]); setPostHits([]); if (!q.trim()) return; const t = setTimeout(() => api.search(q).then(r => { if (active) { setResults(r.users); setPostHits(r.posts || []); } }).catch(() => {}), 250); return () => { active=false; clearTimeout(t); }; }, [q]);
   const loadMore = useCallback(async (kind: 'feed' | 'explore') => {
     if (more) return; const next = kind === 'feed' ? feedNext : exploreNext; if (!next) return; setMore(true);
     try { const r = await (kind === 'feed' ? api.feed(next) : api.explore(next)); const add = (l: Post[]) => [...l, ...r.posts.filter(p => !l.some(x => x.id === p.id))];
@@ -175,15 +182,15 @@ export function App() {
   if (!me) return <div className={cls}>{entry === 'landing' ? <Landing onStart={setEntry} /> : <Auth key={entry} initial={entry} onBack={() => setEntry('landing')} onAuth={u => { setMe(u); setTab('home'); }} />}</div>;
   const nav: [Tab, string][] = [['home', I.home], ['explore', I.search], ['create', I.plus], ['messages', I.send], ['activity', I.bell], ['saved', I.bookmark], ['profile', I.user]];
   const badge = (t: Tab) => { const n = t === 'activity' ? unread : t === 'messages' ? dmUnread : 0; return n > 0 ? <i className="badge">{n > 9 ? '9+' : n}</i> : null; };
-  const go = (t: Tab) => { if (t === 'profile') loadProfile(me.handle); else setTab(t); };
+  const go = (t: Tab) => { setOpen(null); setEditing(false); if (t === 'profile') loadProfile(me.handle); else setTab(t); window.scrollTo({top:0,behavior:'instant' as ScrollBehavior}); };
   const card = (p: Post) => <PostCard key={p.id} post={p} me={me} onChange={upd} onOpen={() => setOpen(p)} onUser={loadProfile} onDelete={del} />;
   return <div className={cls}>
-    <aside className="side"><h1 className="logo">Threadline <span className="v2">2.0</span></h1>
+    <a className="skip-link" href="#main-content">Skip to content</a><aside className="side"><h1 className="logo">Threadline <span className="v2">2.0</span></h1>
       {nav.map(([t, d]) => <button key={t} className={tab === t ? 'on' : ''} onClick={() => go(t)}><Ic d={d} fill={tab === t && t !== 'create'} />{badge(t)}<span>{t[0].toUpperCase() + t.slice(1)}</span></button>)}
       <button className="push" onClick={() => setDark(!dark)}><Ic d={I.moon} /><span>{dark ? 'Light' : 'Dark'} mode</span></button>
       <button onClick={logout}><Ic d={I.close} /><span>Log out</span></button></aside>
     <header className="top"><h1 className="logo">Threadline <span className="v2">2.0</span></h1><span><button onClick={() => setDark(!dark)} aria-label="Toggle dark mode"><Ic d={I.moon} /></button> <button onClick={logout} aria-label="Log out"><Ic d={I.close} /></button></span></header>
-    <main key={tab + (prof?.user.handle || '')} className="page">
+    <main key={tab} className="page" id="main-content">
       {tab === 'home' && <div className="home"><section className="col">
         <div className="stories"><label className="story add"><span className="av-wrap" style={{ width: 62, height: 62 }}><Avatar handle={me.handle} name={me.name} size={58} src={me.avatar} /><i className="plus">+</i></span><small>Your story</small>
           <input type="file" accept="image/*" hidden onChange={async e => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; try { await api.addStory(await toDataUrl(f)); say('Story shared'); loadStories(); } catch (x: any) { say(x.message); } }} /></label>
@@ -198,19 +205,19 @@ export function App() {
           {!results.length && !postHits.length && <p className="empty">Nothing found for "{q}".</p>}</> : <><Grid posts={explore} onOpen={setOpen} /><More on={!!exploreNext} busy={more} onVisible={() => loadMore('explore')} /></>}</div>}
       {tab === 'create' && <Create done={() => { say('Posted'); loadProfile(me.handle); }} />}
       {tab === 'messages' && <Messages me={me} to={dmTo} setTo={setDmTo} onUser={loadProfile} onRead={() => api.conversations().then(r => setDmUnread(r.unread)).catch(() => {})} />}
-      {tab === 'activity' && <div className="wide"><h2>Activity</h2>{notifs.length === 0 && <p className="empty">Likes, comments and new followers will show up here.</p>}
+      {tab === 'activity' && <div className="wide"><div className="section-heading"><p className="eyebrow">In the loop</p><h2>Activity</h2><p>The people and moments connecting with you.</p></div>{notifs.length === 0 && <p className="empty">Likes, comments and new followers will show up here.</p>}
         {notifs.map((n, i) => <div key={n.id} className={'notif' + (n.seen ? '' : ' new')} style={{ animationDelay: Math.min(i, 10) * 40 + 'ms' }}>
           <button onClick={() => loadProfile(n.user.handle)}><Avatar handle={n.user.handle} name={n.user.name} size={44} src={n.user.avatar} /></button>
           <div><b>{n.user.handle}</b> {n.type === 'like' ? 'liked your photo.' : n.type === 'comment' ? <>commented: <span className="mut">{n.text}</span></> : 'started following you.'} <small>{ago(n.created)}</small></div>
           {n.image && <img src={img(n.image)} alt="" />}</div>)}</div>}
-      {tab === 'saved' && <div className="wide"><h2>Saved</h2><Grid posts={saved} onOpen={setOpen} /></div>}
+      {tab === 'saved' && <div className="wide"><div className="section-heading"><p className="eyebrow">Your collection</p><h2>Saved moments</h2><p>Keep the things that stay with you.</p></div><Grid posts={saved} onOpen={setOpen} /></div>}
       {tab === 'profile' && prof && <div className="wide"><div className="prof"><Avatar handle={prof.user.handle} name={prof.user.name} size={96} story src={prof.user.avatar} /><div><h2>{prof.user.handle}
         {prof.user.id === me.id && <button className="ghost" onClick={() => setEditing(true)}>Edit profile</button>}
         {prof.user.id !== me.id && <button className="ghost" onClick={() => { setDmTo(prof.user.handle); setTab('messages'); }}>Message</button>}
         {prof.user.id !== me.id && <button className={prof.user.followedByMe ? 'ghost' : 'primary sm'} onClick={() => follow(prof.user)}>{prof.user.followedByMe ? 'Following' : 'Follow'}</button>}</h2>
         <div className="stats"><span><b>{prof.user.posts}</b> posts</span><span><b>{prof.user.followers}</b> followers</span><span><b>{prof.user.following}</b> following</span></div><p><b>{prof.user.name}</b><br />{prof.user.bio}</p></div></div><Grid posts={prof.posts} onOpen={setOpen} /></div>}
     </main>
-    <nav className="bottom">{nav.filter(([t]) => t !== 'saved').map(([t, d]) => <button key={t} className={tab === t ? 'on' : ''} onClick={() => go(t)} aria-label={t}><Ic d={d} fill={tab === t && t !== 'create'} />{badge(t)}</button>)}</nav>
+    <nav className="bottom" aria-label="Main navigation">{nav.map(([t, d]) => <button key={t} className={tab === t ? 'on' : ''} onClick={() => go(t)} aria-label={t} aria-current={tab === t ? "page" : undefined}><Ic d={d} fill={tab === t && t !== 'create'} />{badge(t)}</button>)}</nav>
     {open && <Modal post={open} me={me} onChange={upd} onClose={() => setOpen(null)} onUser={loadProfile} onDelete={del} />}
     {viewer !== null && groups[viewer] && <StoryViewer groups={groups} start={viewer} onClose={() => setViewer(null)} />}
     {editing && <EditProfile me={me} onClose={() => setEditing(false)} onSaved={u => { setMe(u); setEditing(false); loadProfile(u.handle); say('Profile updated'); }} />}
