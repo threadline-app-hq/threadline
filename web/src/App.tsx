@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { api, hasToken, setToken, setOnAuthLost, img, Post, User, Comment, Notif, Convo, Msg, Mini } from './api';
+import { api, hasToken, setToken, setOnAuthLost, img, Post, User, Comment, Notif, Convo, Msg, Mini, StoryGroup } from './api';
 import { Landing } from './Landing';
 import './style.css';
 
@@ -111,6 +111,17 @@ function Messages({ me, to, setTo, onUser, onRead }: { me: User; to: string | nu
     {convos.length === 0 && <p className="empty">No conversations yet. Open someone's profile and tap Message.</p>}
     {convos.map(c => <button key={c.user.id} className={'convo' + (c.unread ? ' new' : '')} onClick={() => setTo(c.user.handle)}><Avatar handle={c.user.handle} name={c.user.name} size={48} src={c.user.avatar} /><div><b>{c.user.handle}</b><span>{c.mine ? 'You: ' : ''}{c.text}</span></div>{c.unread > 0 && <i className="badge static">{c.unread}</i>}<small>{ago(c.created)}</small></button>)}</div>;
 }
+function StoryViewer({ groups, start, onClose }: { groups: StoryGroup[]; start: number; onClose: () => void }) {
+  const [gi, setGi] = useState(start); const [ii, setIi] = useState(0); const g = groups[gi]; const it = g.items[ii]; const DUR = 5000;
+  const next = useCallback(() => { if (ii < g.items.length - 1) setIi(ii + 1); else if (gi < groups.length - 1) { setGi(gi + 1); setIi(0); } else onClose(); }, [ii, gi, g, groups.length, onClose]);
+  const prev = () => { if (ii > 0) setIi(ii - 1); else if (gi > 0) { setGi(gi - 1); setIi(0); } };
+  useEffect(() => { const t = setTimeout(next, DUR); return () => clearTimeout(t); }, [gi, ii, next]);
+  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); if (e.key === 'ArrowRight') next(); if (e.key === 'ArrowLeft') prev(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); });
+  return <div className="sv" onClick={onClose}><div className="sv-card" onClick={e => e.stopPropagation()}>
+    <div className="sv-bars">{g.items.map((_, i) => <span key={g.user.id + '-' + i}><b className={i < ii ? 'done' : i === ii ? 'run' : ''} style={i === ii ? { animationDuration: DUR + 'ms' } : undefined} /></span>)}</div>
+    <div className="sv-h"><Avatar handle={g.user.handle} name={g.user.name} size={32} src={g.user.avatar} /><b>{g.user.handle}</b><small>{ago(it.created)}</small><button onClick={onClose} aria-label="Close"><Ic d={I.close} /></button></div>
+    <img key={it.id} src={img(it.image)} alt="" /><button className="sv-l" onClick={prev} aria-label="Previous" /><button className="sv-r" onClick={next} aria-label="Next" /></div></div>;
+}
 function More({ on, busy, onVisible }: { on: boolean; busy: boolean; onVisible: () => void }) {
   const ref = useRef<HTMLDivElement>(null); const cb = useRef(onVisible); cb.current = onVisible;
   useEffect(() => { const el = ref.current; if (!el || !on) return; const o = new IntersectionObserver(([e]) => { if (e.isIntersecting) cb.current(); }, { rootMargin: '600px' }); o.observe(el); return () => o.disconnect(); }, [on, busy]);
@@ -129,7 +140,7 @@ export function App() {
   const [me, setMe] = useState<User | null>(null); const [ready, setReady] = useState(!hasToken());
   const [tab, setTab] = useState<Tab>('home'); const [feed, setFeed] = useState<Post[]>([]); const [explore, setExplore] = useState<Post[]>([]); const [saved, setSaved] = useState<Post[]>([]);
   const [prof, setProf] = useState<{ user: User; posts: Post[] } | null>(null); const [open, setOpen] = useState<Post | null>(null); const [dark, setDark] = useState(() => localStorage.getItem('tl_dark') === '1');
-  const [entry, setEntry] = useState<'landing' | 'login' | 'signup'>('landing'); const [feedNext, setFeedNext] = useState<number | null>(null); const [exploreNext, setExploreNext] = useState<number | null>(null); const [more, setMore] = useState(false); const [dmTo, setDmTo] = useState<string | null>(null); const [dmUnread, setDmUnread] = useState(0); const [editing, setEditing] = useState(false); const [notifs, setNotifs] = useState<Notif[]>([]); const [unread, setUnread] = useState(0); const [q, setQ] = useState(''); const [results, setResults] = useState<User[]>([]); const [postHits, setPostHits] = useState<Post[]>([]); const [toast, setToast] = useState(''); const [loading, setLoading] = useState(false);
+  const [entry, setEntry] = useState<'landing' | 'login' | 'signup'>('landing'); const [feedNext, setFeedNext] = useState<number | null>(null); const [exploreNext, setExploreNext] = useState<number | null>(null); const [more, setMore] = useState(false); const [groups, setGroups] = useState<StoryGroup[]>([]); const [viewer, setViewer] = useState<number | null>(null); const [dmTo, setDmTo] = useState<string | null>(null); const [dmUnread, setDmUnread] = useState(0); const [editing, setEditing] = useState(false); const [notifs, setNotifs] = useState<Notif[]>([]); const [unread, setUnread] = useState(0); const [q, setQ] = useState(''); const [results, setResults] = useState<User[]>([]); const [postHits, setPostHits] = useState<Post[]>([]); const [toast, setToast] = useState(''); const [loading, setLoading] = useState(false);
   const say = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2600); };
   useEffect(() => { setOnAuthLost(() => { setMe(null); }); if (hasToken()) api.me().then(setMe).catch(() => setToken('')).finally(() => setReady(true)); }, []);
   useEffect(() => { localStorage.setItem('tl_dark', dark ? '1' : '0'); }, [dark]);
@@ -138,7 +149,8 @@ export function App() {
     if (!me) return; setLoading(true);
     try { const [f, e, s] = await Promise.all([api.feed(), api.explore(), api.saved()]); setFeed(f.posts); setFeedNext(f.next); setExplore(e.posts); setExploreNext(e.next); setSaved(s.posts); if (tab === 'profile' && prof) setProf(await api.profile(prof.user.handle)); } catch (e: any) { say(e.message); } finally { setLoading(false); }
   }, [me, tab, prof?.user.handle]);
-  useEffect(() => { if (me) refresh(); }, [me, tab]);
+  const loadStories = useCallback(() => { api.stories().then(r => setGroups(r.groups)).catch(() => {}); }, []);
+  useEffect(() => { if (me) { refresh(); if (tab === 'home') loadStories(); } }, [me, tab]);
   useEffect(() => { if (!me) return; const pull = () => api.notifications().then(r => { setNotifs(r.items); setUnread(r.unread); }).catch(() => {}); api.conversations().then(r => setDmUnread(r.unread)).catch(() => {}); pull(); const t = setInterval(pull, 30000); return () => clearInterval(t); }, [me]);
   useEffect(() => { if (tab === 'activity' && unread) { const t = setTimeout(() => api.readNotifications().then(() => setUnread(0)).catch(() => {}), 1200); return () => clearTimeout(t); } }, [tab, unread]);
   useEffect(() => { if (!q.trim()) { setResults([]); return; } const t = setTimeout(() => api.search(q).then(r => { setResults(r.users); setPostHits(r.posts || []); }).catch(() => {}), 250); return () => clearTimeout(t); }, [q]);
@@ -166,6 +178,9 @@ export function App() {
     <header className="top"><h1 className="logo">Threadline <span className="v2">2.0</span></h1><span><button onClick={() => setDark(!dark)} aria-label="Toggle dark mode"><Ic d={I.moon} /></button> <button onClick={logout} aria-label="Log out"><Ic d={I.close} /></button></span></header>
     <main key={tab + (prof?.user.handle || '')} className="page">
       {tab === 'home' && <div className="home"><section className="col">
+        <div className="stories"><label className="story add"><span className="av-wrap" style={{ width: 62, height: 62 }}><Avatar handle={me.handle} name={me.name} size={58} src={me.avatar} /><i className="plus">+</i></span><small>Your story</small>
+          <input type="file" accept="image/*" hidden onChange={async e => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; try { await api.addStory(await toDataUrl(f)); say('Story shared'); loadStories(); } catch (x: any) { say(x.message); } }} /></label>
+          {groups.map((g, i) => <button key={g.user.id} className="story" onClick={() => setViewer(i)}><Avatar handle={g.user.handle} name={g.user.name} size={58} story src={g.user.avatar} /><small>{g.user.id === me.id ? 'You' : g.user.handle}</small></button>)}</div>
         {feed.length === 0 && loading && [0, 1].map(i => <div key={i} className="post sk"><div className="sk-h"><i /><b /></div><div className="sk-m" /><div className="sk-l" /></div>)}
         {feed.length === 0 && !loading && <div className="empty card"><div className="empty-ic"><Ic d={I.heart} size={30} /></div><p><b>Your feed is empty.</b></p><p>Follow people on Explore, or share your first photo.</p><p><button className="primary sm" onClick={() => setTab('explore')}>Find people</button></p></div>}
         {feed.map(card)}<More on={!!feedNext} busy={more} onVisible={() => loadMore('feed')} /></section>
@@ -190,6 +205,7 @@ export function App() {
     </main>
     <nav className="bottom">{nav.filter(([t]) => t !== 'saved').map(([t, d]) => <button key={t} className={tab === t ? 'on' : ''} onClick={() => go(t)} aria-label={t}><Ic d={d} fill={tab === t && t !== 'create'} />{badge(t)}</button>)}</nav>
     {open && <Modal post={open} me={me} onChange={upd} onClose={() => setOpen(null)} onUser={loadProfile} onDelete={del} />}
+    {viewer !== null && groups[viewer] && <StoryViewer groups={groups} start={viewer} onClose={() => setViewer(null)} />}
     {editing && <EditProfile me={me} onClose={() => setEditing(false)} onSaved={u => { setMe(u); setEditing(false); loadProfile(u.handle); say('Profile updated'); }} />}
     {toast && <div className="toast" role="status">{toast}</div>}
   </div>;
