@@ -86,13 +86,50 @@ function PostCard({ post, me, onChange, onOpen, onUser, onDelete, priority = fal
 function useDialog(onClose: () => void) {
   const ref=useRef<HTMLDivElement>(null);
   const close=useRef(onClose);close.current=onClose;
-  useEffect(()=>{const old=document.activeElement as HTMLElement;const overflow=document.body.style.overflow;document.body.style.overflow='hidden';const el=ref.current;const isolated:HTMLElement[]=[];let node=el?.parentElement;while(node&&node!==document.body){for(const sibling of Array.from(node.parentElement?.children||[])){if(sibling!==node&&sibling instanceof HTMLElement&&!sibling.inert){sibling.inert=true;isolated.push(sibling);}}node=node.parentElement;}el?.focus({preventScroll:true});
-    const key=(e:KeyboardEvent)=>{if(e.key==='Escape'){e.preventDefault();close.current();}if(e.key==='Tab'&&el){const a=Array.from(el.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]):not([type=hidden]),textarea,a[href],[role=button][tabindex]')).filter(x=>x.offsetParent!==null);if(!a.length){e.preventDefault();return;}if(e.shiftKey&&(document.activeElement===a[0]||document.activeElement===el)){e.preventDefault();a[a.length-1]?.focus();}else if(!e.shiftKey&&(document.activeElement===a[a.length-1]||document.activeElement===el)){e.preventDefault();a[0].focus();}}};document.addEventListener('keydown',key);return()=>{document.body.style.overflow=overflow;isolated.forEach(x=>{x.inert=false;});document.removeEventListener('keydown',key);old?.focus({preventScroll:true});};},[]);return ref;
+  useEffect(()=>{
+    const old=document.activeElement as HTMLElement;
+    const overflow=document.body.style.overflow;
+    const scroll={left:window.scrollX,top:window.scrollY};
+    document.body.style.overflow='hidden';
+    const el=ref.current;
+    const isolated:HTMLElement[]=[];
+    let node=el?.parentElement;
+    while(node&&node!==document.body){
+      for(const sibling of Array.from(node.parentElement?.children||[])){
+        if(sibling!==node&&sibling instanceof HTMLElement&&!sibling.inert){sibling.inert=true;isolated.push(sibling);}
+      }
+      node=node.parentElement;
+    }
+    el?.focus({preventScroll:true});
+    const key=(e:KeyboardEvent)=>{
+      if(e.key==='Escape'){e.preventDefault();close.current();return;}
+      if(e.key!=='Tab'||!el)return;
+      const controls=Array.from(el.querySelectorAll<HTMLElement>('button,input,textarea,select,a[href],[tabindex]'))
+        .filter(x=>!x.matches(':disabled,[type=hidden]')&&x.tabIndex>=0&&x.getClientRects().length>0&&getComputedStyle(x).visibility!=='hidden');
+      if(!controls.length){e.preventDefault();el.focus({preventScroll:true});return;}
+      const current=document.activeElement;
+      if(!controls.includes(current as HTMLElement)){
+        e.preventDefault();(e.shiftKey?controls[controls.length-1]:controls[0]).focus();
+      }else if(e.shiftKey&&current===controls[0]){
+        e.preventDefault();controls[controls.length-1].focus();
+      }else if(!e.shiftKey&&current===controls[controls.length-1]){
+        e.preventDefault();controls[0].focus();
+      }
+    };
+    document.addEventListener('keydown',key);
+    return()=>{
+      document.body.style.overflow=overflow;
+      isolated.forEach(x=>{x.inert=false;});
+      document.removeEventListener('keydown',key);
+      if(old?.isConnected)old.focus({preventScroll:true});
+      window.scrollTo({...scroll,behavior:'instant'});
+    };
+  },[]);
+  return ref;
 }
 function Modal({ post, me, onChange, onClose, onUser, onDelete }: { post: Post; me: User; onChange: (p: Post) => void; onClose: () => void; onUser: (h: string) => void; onDelete:(id:number)=>Promise<boolean> }) {
   const dialog=useDialog(onClose); const [all,setAll]=useState<Comment[]>([]);const [commentsLoading,setCommentsLoading]=useState(true);const [commentsErr,setCommentsErr]=useState('');const [commentsRetry,setCommentsRetry]=useState(0);
   useEffect(()=>{let active=true;setCommentsLoading(true);setCommentsErr('');api.comments(post.id).then(r=>{if(active)setAll(r.comments);}).catch(e=>{if(active)setCommentsErr(e.message);}).finally(()=>{if(active)setCommentsLoading(false);});return()=>{active=false;};},[post.id,post.commentCount,commentsRetry]);
-  useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
   return <div className="scrim" onClick={onClose}><div ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Post and comments" className="modal" onClick={e => e.stopPropagation()}>
     <div className="modal-tools"><span>Photograph</span><button className="x" onClick={onClose} aria-label="Close"><Ic d={I.close} /></button></div>
     <PostCard priority post={{ ...post, comments: commentsLoading||commentsErr?post.comments:all }} me={me} onChange={onChange} onUser={h => { onClose(); onUser(h); }} onDelete={async id=>{const ok=await onDelete(id);if(ok)onClose();return ok;}} />{commentsLoading&&<p className="comments-status" role="status">Loading comments…</p>}{commentsErr&&<div className="comments-status err" role="alert"><p>{commentsErr}</p><button className="ghost" onClick={()=>setCommentsRetry(n=>n+1)}>Try again</button></div>}</div></div>;
@@ -162,7 +199,7 @@ function EditProfile({ me, onClose, onSaved }: { me: User; onClose: () => void; 
     <h3>Edit profile</h3><button type="button" className="avpick" aria-label="Change profile photo" disabled={busy||recoverBusy} onClick={()=>avatarInput.current?.click()}><Avatar handle={me.handle} name={me.name} size={72} src={av||(removeAvatar?undefined:me.avatar)} /><span>{avatarBusy?'Reading photo…':'Change photo'}</span></button><input ref={avatarInput} type="file" accept="image/*" hidden disabled={busy||recoverBusy} onChange={e=>{pick(e.target.files?.[0]);e.target.value='';}} />{(av||me.avatar)&&!removeAvatar&&<button type="button" className="link" disabled={busy||recoverBusy} onClick={()=>{avatarId.current++;setAvatarBusy(false);setAv(undefined);setRemoveAvatar(true);}}>Remove profile photo</button>}<label>Name<input disabled={busy||recoverBusy} value={name} maxLength={60} onChange={e => setName(e.target.value)} /></label>
     <label>Bio<textarea disabled={busy||recoverBusy} value={bio} maxLength={200} rows={3} onChange={e => setBio(e.target.value)} /></label><small className="mut" aria-hidden="true">{bio.length}/200</small>
     <button type="button" className="ghost" disabled={busy||recoverBusy} onClick={()=>{setRecovering(r=>!r);setErr('');}}>Manage recovery code</button>
-    {recovering&&<div className="recovery-panel">{recovery?<><p className="tag">Save this code somewhere private. Your previous code no longer works.</p><div className="rcode">{recovery}</div><button type="button" className="ghost" onClick={async()=>{try{await navigator.clipboard.writeText(recovery);}catch{setErr('Select and save the code manually.');}}}>Copy code</button></>:<><p className="tag">Enter your password to replace your recovery code. The old code will stop working.</p><label>Password<input type="password" autoComplete="current-password" onKeyDown={e=>{if(e.key==='Enter')e.preventDefault();}} value={password} onChange={e=>setPassword(e.target.value)}/></label><button type="button" className="ghost" disabled={!password||recoverBusy} onClick={async()=>{if(recoveryLock.current||saveLock.current)return;recoveryLock.current=true;setRecoverBusy(true);setErr('');try{const r=await api.newRecovery(password);setRecovery(r.recoveryCode);setPassword('');}catch(x:any){setErr(x.message);}finally{recoveryLock.current=false;setRecoverBusy(false);}}}>{recoverBusy?'Creating…':'Create new code'}</button></>}</div>}
+    {recovering&&<div className="recovery-panel">{recovery?<><p className="tag">Save this code somewhere private. Your previous code no longer works.</p><div className="rcode">{recovery}</div><button type="button" className="ghost" disabled={busy||recoverBusy} onClick={async()=>{try{await navigator.clipboard.writeText(recovery);}catch{setErr('Select and save the code manually.');}}}>Copy code</button></>:<><p className="tag">Enter your password to replace your recovery code. The old code will stop working.</p><label>Password<input disabled={busy||recoverBusy} type="password" autoComplete="current-password" onKeyDown={e=>{if(e.key==='Enter')e.preventDefault();}} value={password} onChange={e=>setPassword(e.target.value)}/></label><button type="button" className="ghost" disabled={!password||busy||recoverBusy} onClick={async()=>{if(recoveryLock.current||saveLock.current)return;recoveryLock.current=true;setRecoverBusy(true);setErr('');try{const r=await api.newRecovery(password);setRecovery(r.recoveryCode);setPassword('');}catch(x:any){setErr(x.message);}finally{recoveryLock.current=false;setRecoverBusy(false);}}}>{recoverBusy?'Creating…':'Create new code'}</button></>}</div>}
 
     {err && <p className="err" role="alert">{err}</p>}<div className="row"><button type="button" className="ghost" disabled={busy||recoverBusy} onClick={dismiss}>Cancel</button><button className="primary" disabled={busy||recoverBusy||avatarBusy}>{busy ? 'Saving…' : 'Save'}</button></div></form></div></div>;
 }
