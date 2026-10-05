@@ -32,18 +32,24 @@ async function toDataUrl(file: File, maxSide = 1440): Promise<string> {
 }
 
 function Auth({ onAuth, initial = 'login', onBack }: { onAuth: (u: User) => void; initial?: 'login' | 'signup'; onBack?: () => void }) {
-  const [mode, setMode] = useState<'login' | 'signup'>(initial); const [handle, setHandle] = useState(''); const [name, setName] = useState(''); const [pw, setPw] = useState(''); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState<'login' | 'signup' | 'reset'>(initial); const [code, setCode] = useState(''); const [shown, setShown] = useState<{ code: string; user: User } | null>(null); const [handle, setHandle] = useState(''); const [name, setName] = useState(''); const [pw, setPw] = useState(''); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
   const submit = async (e: React.FormEvent) => { e.preventDefault(); setErr(''); setBusy(true);
-    try { const r = mode === 'login' ? await api.login(handle, pw) : await api.signup(handle, name || handle, pw); setToken(r.token); onAuth(r.user); }
+    try { const r: any = mode === 'login' ? await api.login(handle, pw) : mode === 'reset' ? await api.reset(handle, code, pw) : await api.signup(handle, name || handle, pw); setToken(r.token); if (r.recoveryCode) setShown({ code: r.recoveryCode, user: r.user }); else onAuth(r.user); }
     catch (x: any) { setErr(x.message); } finally { setBusy(false); } };
+  if (shown) return <div className="authwrap"><div className="authcard"><h1 className="logo">Save your recovery code</h1><p className="tag">If you forget your password, this code is the only way back in. We never email you, so write it down.</p>
+    <div className="rcode" data-testid="recovery-code">{shown.code}</div>
+    <button type="button" className="ghost" onClick={() => navigator.clipboard?.writeText(shown.code)}>Copy code</button>
+    <button className="primary" onClick={() => onAuth(shown.user)}>I saved it, continue</button></div></div>;
   return <div className="authwrap"><form className="authcard" onSubmit={submit}>
     {onBack && <button type="button" className="back" onClick={onBack}>← Back</button>}<h1 className="logo">Threadline <span className="v2">2.0</span></h1><p className="tag">Photos from people you care about.</p>
     <input placeholder="Username" value={handle} onChange={e => setHandle(e.target.value)} autoCapitalize="none" autoComplete="username" required />
     {mode === 'signup' && <input placeholder="Full name" value={name} onChange={e => setName(e.target.value)} autoComplete="name" />}
-    <input placeholder="Password" type="password" value={pw} onChange={e => setPw(e.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required minLength={mode === 'signup' ? 8 : 1} />
+    {mode === 'reset' && <input placeholder="Recovery code (XXXX-XXXX-XXXX)" value={code} onChange={e => setCode(e.target.value)} autoCapitalize="characters" autoComplete="off" required />}
+    <input placeholder={mode === 'reset' ? 'New password' : 'Password'} type="password" value={pw} onChange={e => setPw(e.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required minLength={mode === 'login' ? 1 : 8} />
     {err && <p className="err" role="alert">{err}</p>}
-    <button className="primary" disabled={busy}>{busy ? 'One moment…' : mode === 'login' ? 'Log in' : 'Sign up'}</button>
-    <p className="swap">{mode === 'login' ? 'New here?' : 'Have an account?'} <button type="button" onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setErr(''); }}>{mode === 'login' ? 'Sign up' : 'Log in'}</button></p>
+    <button className="primary" disabled={busy}>{busy ? 'One moment…' : mode === 'login' ? 'Log in' : mode === 'reset' ? 'Reset password' : 'Sign up'}</button>
+    {mode === 'login' && <p className="swap"><button type="button" onClick={() => { setMode('reset'); setErr(''); }}>Forgot password?</button></p>}
+    <p className="swap">{mode === 'login' ? 'New here?' : mode === 'reset' ? 'Remembered it?' : 'Have an account?'} <button type="button" onClick={() => { setMode(mode === 'signup' ? 'login' : mode === 'reset' ? 'login' : 'signup'); setErr(''); }}>{mode === 'login' ? 'Sign up' : 'Log in'}</button></p>
   </form></div>;
 }
 
@@ -134,6 +140,7 @@ function EditProfile({ me, onClose, onSaved }: { me: User; onClose: () => void; 
   return <div className="scrim" onClick={onClose}><form className="modal editm" onClick={e => e.stopPropagation()} onSubmit={save}>
     <h3>Edit profile</h3><label className="avpick"><Avatar handle={me.handle} name={me.name} size={72} src={av || me.avatar} /><span>Change photo</span><input type="file" accept="image/*" hidden onChange={e => pick(e.target.files?.[0])} /></label><label>Name<input value={name} maxLength={60} onChange={e => setName(e.target.value)} /></label>
     <label>Bio<textarea value={bio} maxLength={200} rows={3} onChange={e => setBio(e.target.value)} /></label><small className="mut">{bio.length}/200</small>
+    <button type="button" className="ghost" onClick={async () => { const p = window.prompt('Enter your password to create a new recovery code'); if (!p) return; try { const r = await api.newRecovery(p); window.alert('Your new recovery code (write it down, the old one no longer works):\n\n' + r.recoveryCode); } catch (x: any) { setErr(x.message); } }}>Get a new recovery code</button>
     {err && <p className="err">{err}</p>}<div className="row"><button type="button" className="ghost" onClick={onClose}>Cancel</button><button className="primary" disabled={busy}>{busy ? 'Saving…' : 'Save'}</button></div></form></div>;
 }
 export function App() {
