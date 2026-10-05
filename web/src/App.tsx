@@ -134,7 +134,7 @@ export function App() {
       {nav.map(([t, d]) => <button key={t} className={tab === t ? 'on' : ''} onClick={() => go(t)}><Ic d={d} fill={tab === t && t !== 'create'} />{badge(t)}<span>{t[0].toUpperCase() + t.slice(1)}</span></button>)}
       <button className="push" onClick={() => setDark(!dark)}><Ic d={I.moon} /><span>{dark ? 'Light' : 'Dark'} mode</span></button>
       <button onClick={logout}><Ic d={I.close} /><span>Log out</span></button></aside>
-    <header className="top"><h1 className="logo">Threadline</h1><span><button onClick={() => setDark(!dark)} aria-label="Toggle dark mode"><Ic d={I.moon} /></button> <button onClick={logout} aria-label="Log out"><Ic d={I.close} /></button></span></header>
+    <header className="top"><h1 className="logo">Threadline <span className="v2">2.0</span></h1><span><button onClick={() => setDark(!dark)} aria-label="Toggle dark mode"><Ic d={I.moon} /></button> <button onClick={logout} aria-label="Log out"><Ic d={I.close} /></button></span></header>
     <main key={tab + (prof?.user.handle || '')} className="page">
       {tab === 'home' && <div className="home"><section className="col">
         {feed.length === 0 && loading && [0, 1].map(i => <div key={i} className="post sk"><div className="sk-h"><i /><b /></div><div className="sk-m" /><div className="sk-l" /></div>)}
