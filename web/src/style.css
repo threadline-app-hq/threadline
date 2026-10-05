@@ -139,3 +139,4 @@ html,body{overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent;-we
 .ig .top .logo{display:flex;align-items:center;gap:8px;font-size:26px;line-height:1.2;padding:0;margin:0;text-align:left;white-space:nowrap}.ig .top .logo .v2{-webkit-text-fill-color:#fff}
 .ig .top{min-height:0;height:auto;align-items:center}
 .ig{align-content:start}.ig .loading,.ig .authwrap,.ig .land{align-self:stretch}
+.hits{margin:22px 0 10px;font-size:15px}
