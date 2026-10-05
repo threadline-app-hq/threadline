@@ -141,3 +141,5 @@ html,body{overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent;-we
 .ig{align-content:start}.ig .loading,.ig .authwrap,.ig .land{align-self:stretch}
 .hits{margin:22px 0 10px;font-size:15px}
 .more{min-height:60px;display:grid;place-items:center}
+.avpick{flex-direction:row!important;align-items:center;gap:14px!important;cursor:pointer;color:var(--blue)}
+.av{background-size:cover}
