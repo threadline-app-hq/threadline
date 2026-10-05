@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS follows(follower INT NOT NULL REFERENCES users(id) ON
 CREATE TABLE IF NOT EXISTS comments(id SERIAL PRIMARY KEY, post_id INT NOT NULL REFERENCES posts(id) ON DELETE CASCADE, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, text TEXT NOT NULL, created BIGINT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_posts_user ON posts(user_id, created);
 CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id, created);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT;
 CREATE INDEX IF NOT EXISTS idx_follows_followee ON follows(followee);
 CREATE INDEX IF NOT EXISTS idx_likes_post ON likes(post_id);
 CREATE INDEX IF NOT EXISTS idx_saves_post ON saves(post_id);
@@ -68,7 +69,7 @@ setInterval(() => hits.clear(), 3600e3).unref();
 class HttpError extends Error { constructor(status, msg) { super(msg); this.status = status; } }
 const bad = (s, m) => { throw new HttpError(s, m); };
 
-const publicUser = async (u, me) => ({ id: u.id, handle: u.handle, name: u.name, bio: u.bio,
+const publicUser = async (u, me) => ({ id: u.id, handle: u.handle, name: u.name, bio: u.bio, avatar: u.avatar ? '/uploads/' + u.avatar : null,
   followers: await count('SELECT COUNT(*) c FROM follows WHERE followee=$1', u.id),
   following: await count('SELECT COUNT(*) c FROM follows WHERE follower=$1', u.id),
   posts: await count('SELECT COUNT(*) c FROM posts WHERE user_id=$1', u.id),
@@ -84,12 +85,12 @@ const shapeAll = async (rows, me) => {
     Promise.all(ids.map(id => q('SELECT c.id, c.text, c.created, u.handle FROM comments c JOIN users u ON u.id=c.user_id WHERE c.post_id=$1 ORDER BY c.created DESC, c.id DESC LIMIT 3', id))),
   ]);
   const m = (a) => new Map(a.map(x => [x.post_id, Number(x.c)])); const L = m(lc), C = m(cc), M = new Set(mine.map(x => x.post_id)), S = new Set(sv.map(x => x.post_id));
-  return rows.map((p, i) => ({ id: p.id, image: '/uploads/' + p.image, caption: p.caption, created: p.created, user: { id: p.user_id, handle: p.handle, name: p.name },
+  return rows.map((p, i) => ({ id: p.id, image: '/uploads/' + p.image, caption: p.caption, created: p.created, user: { id: p.user_id, handle: p.handle, name: p.name, avatar: p.avatar ? '/uploads/' + p.avatar : null },
     likes: L.get(p.id) || 0, liked: M.has(p.id), saved: S.has(p.id), commentCount: C.get(p.id) || 0, comments: cm[i].reverse() }));
 };
 const shapePost = async (p, me) => (await shapeAll([p], me))[0];
 const notify = (to, actor, type, post, text = '') => to === actor ? null : run('INSERT INTO notifications(user_id,actor,type,post_id,text,created) VALUES($1,$2,$3,$4,$5,$6)', to, actor, type, post, text.slice(0, 120), Date.now()).catch(() => {});
-const POST_SQL = 'SELECT p.id, p.user_id, p.image, p.caption, p.created, u.handle, u.name FROM posts p JOIN users u ON u.id=p.user_id';
+const POST_SQL = 'SELECT p.id, p.user_id, p.image, p.caption, p.created, u.handle, u.name, u.avatar FROM posts p JOIN users u ON u.id=p.user_id';
 const page = (url, def = 20) => { const l = Math.min(Number(url.searchParams.get('limit')) || def, 50); const before = Number(url.searchParams.get('before')) || 2e9; return { l, before }; };
 const userByHandle = async h => (await one('SELECT * FROM users WHERE handle_lc=$1', String(h).toLowerCase())) || bad(404, 'User not found');
 
@@ -120,6 +121,14 @@ route('POST', '/api/auth/login', false, async ({ body, ip }) => {
 });
 route('GET', '/api/me', true, async ({ me }) => ({ data: await publicUser(await one('SELECT * FROM users WHERE id=$1', me), me) }));
 route('PATCH', '/api/me', true, async ({ me, body }) => {
+  let avatarKey = null;
+  if (body.avatar) {
+    const m = /^data:image\/(?:jpeg|png|webp);base64,(.+)$/.exec(String(body.avatar)) || bad(400, 'avatar must be a jpeg, png or webp data URL');
+    const buf = Buffer.from(m[1], 'base64'); if (!buf.length || buf.length > 1024 * 1024) bad(413, 'Avatar must be under 1 MB');
+    const ext = sniff(buf) || bad(400, 'Unsupported or corrupt image'); avatarKey = crypto.randomUUID() + '.' + ext;
+    await run('INSERT INTO images(key,mime,data) VALUES($1,$2,$3)', avatarKey, MIME[ext], buf);
+  }
+  if (avatarKey) await run('UPDATE users SET avatar=$1 WHERE id=$2', avatarKey, me);
   await run('UPDATE users SET name=COALESCE($1,name), bio=COALESCE($2,bio) WHERE id=$3', body.name ? String(body.name).slice(0, 60) : null, body.bio != null ? String(body.bio).slice(0, 200) : null, me);
   return { data: await publicUser(await one('SELECT * FROM users WHERE id=$1', me), me) };
 });
@@ -178,8 +187,8 @@ route('POST', '/api/posts/:id/comments', true, async ({ me, params, body }) => {
   await run('INSERT INTO comments(post_id,user_id,text,created) VALUES($1,$2,$3,$4)', p.id, me, text, Date.now()); await notify(p.user_id, me, 'comment', p.id, text); return { status: 201, data: await shapePost(p, me) };
 });
 route('GET', '/api/notifications', true, async ({ me }) => {
-  const rows = await q('SELECT n.id,n.type,n.post_id,n.text,n.created,n.seen,u.handle,u.name,p.image FROM notifications n JOIN users u ON u.id=n.actor LEFT JOIN posts p ON p.id=n.post_id WHERE n.user_id=$1 ORDER BY n.id DESC LIMIT 60', me);
-  return { data: { items: rows.map(r => ({ id: r.id, type: r.type, postId: r.post_id, text: r.text, created: r.created, seen: r.seen, user: { handle: r.handle, name: r.name }, image: r.image ? '/uploads/' + r.image : null })), unread: await count('SELECT COUNT(*) c FROM notifications WHERE user_id=$1 AND NOT seen', me) } };
+  const rows = await q('SELECT n.id,n.type,n.post_id,n.text,n.created,n.seen,u.handle,u.name,u.avatar,p.image FROM notifications n JOIN users u ON u.id=n.actor LEFT JOIN posts p ON p.id=n.post_id WHERE n.user_id=$1 ORDER BY n.id DESC LIMIT 60', me);
+  return { data: { items: rows.map(r => ({ id: r.id, type: r.type, postId: r.post_id, text: r.text, created: r.created, seen: r.seen, user: { handle: r.handle, name: r.name, avatar: r.avatar ? '/uploads/' + r.avatar : null }, image: r.image ? '/uploads/' + r.image : null })), unread: await count('SELECT COUNT(*) c FROM notifications WHERE user_id=$1 AND NOT seen', me) } };
 });
 route('POST', '/api/notifications/read', true, async ({ me }) => { await run('UPDATE notifications SET seen=TRUE WHERE user_id=$1 AND NOT seen', me); return { status: 204 }; });
 route('GET', '/api/metrics', false, async ({ ip }) => ({ data: { uptimeSec: Math.round(process.uptime()), requests: stats.n, errors5xx: stats.e5, errors4xx: stats.e4, avgMs: stats.n ? Math.round(stats.ms / stats.n) : 0, memMB: Math.round(process.memoryUsage().rss / 1048576), version: '2.0' } }));
