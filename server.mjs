@@ -35,6 +35,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT;
 CREATE TABLE IF NOT EXISTS messages(id SERIAL PRIMARY KEY, sender INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, recipient INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, text TEXT NOT NULL, created BIGINT NOT NULL, seen BOOLEAN NOT NULL DEFAULT FALSE);
 CREATE INDEX IF NOT EXISTS idx_msg_pair ON messages(sender, recipient, id);
 CREATE INDEX IF NOT EXISTS idx_msg_recipient ON messages(recipient, seen);
+CREATE TABLE IF NOT EXISTS stories(id SERIAL PRIMARY KEY, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, image TEXT NOT NULL, created BIGINT NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_stories_created ON stories(created);
 CREATE INDEX IF NOT EXISTS idx_follows_followee ON follows(followee);
 CREATE INDEX IF NOT EXISTS idx_likes_post ON likes(post_id);
 CREATE INDEX IF NOT EXISTS idx_saves_post ON saves(post_id);
@@ -188,6 +190,21 @@ route('GET', '/api/posts/:id/comments', true, async ({ params }) => { const p = 
 route('POST', '/api/posts/:id/comments', true, async ({ me, params, body }) => {
   const p = await getPost(params.id); const text = String(body.text || '').trim(); if (!text || text.length > 500) bad(400, 'Comment must be 1-500 characters');
   await run('INSERT INTO comments(post_id,user_id,text,created) VALUES($1,$2,$3,$4)', p.id, me, text, Date.now()); await notify(p.user_id, me, 'comment', p.id, text); return { status: 201, data: await shapePost(p, me) };
+});
+route('GET', '/api/stories', true, async ({ me }) => {
+  const rows = await q('SELECT s.id,s.image,s.created,u.id uid,u.handle,u.name,u.avatar FROM stories s JOIN users u ON u.id=s.user_id WHERE s.created>$2 AND (s.user_id=$1 OR s.user_id IN (SELECT followee FROM follows WHERE follower=$1)) ORDER BY s.created ASC LIMIT 300', me, Date.now() - 864e5);
+  const by = new Map(); for (const r of rows) { if (!by.has(r.uid)) by.set(r.uid, { user: { id: r.uid, handle: r.handle, name: r.name, avatar: r.avatar ? '/uploads/' + r.avatar : null }, items: [] }); by.get(r.uid).items.push({ id: r.id, image: '/uploads/' + r.image, created: r.created }); }
+  const groups = [...by.values()].sort((a, b) => (b.user.id === me) - (a.user.id === me) || b.items.at(-1).created - a.items.at(-1).created);
+  return { data: { groups } };
+});
+route('POST', '/api/stories', true, async ({ me, body, ip }) => {
+  if (limited(ip, 'story', 30, 3600e3)) bad(429, 'Posting too fast');
+  const m = /^data:image\/(?:jpeg|png|webp);base64,(.+)$/.exec(String(body.image || '')) || bad(400, 'image must be a base64 data URL (jpeg, png or webp)');
+  const buf = Buffer.from(m[1], 'base64'); if (!buf.length || buf.length > MAX_IMAGE) bad(413, 'Image must be under 8 MB');
+  const ext = sniff(buf) || bad(400, 'Unsupported or corrupt image'); const key = crypto.randomUUID() + '.' + ext;
+  await run('INSERT INTO images(key,mime,data) VALUES($1,$2,$3)', key, MIME[ext], buf);
+  const r = await one('INSERT INTO stories(user_id,image,created) VALUES($1,$2,$3) RETURNING id', me, key, Date.now());
+  return { status: 201, data: { id: r.id } };
 });
 route('GET', '/api/messages', true, async ({ me }) => {
   const rows = await q('SELECT m.id,m.sender,m.recipient,m.text,m.created,m.seen FROM messages m WHERE m.sender=$1 OR m.recipient=$1 ORDER BY m.id DESC LIMIT 400', me);
