@@ -25,6 +25,11 @@ try {
   assert.equal((await call("POST", `/api/posts/${id}/like`, null, b.token)).j.likes, 1);
   { const n = (await call('GET', '/api/notifications', null, a.token)).j; assert.equal(n.unread, 2); assert.deepEqual(n.items.map(i => i.type).sort(), ['follow', 'like']); assert.equal((await call('POST', '/api/notifications/read', null, a.token)).s, 204); assert.equal((await call('GET', '/api/notifications', null, a.token)).j.unread, 0); }
   assert.equal((await call('GET', '/api/metrics')).j.version, '2.0');
+  assert.equal((await call('POST', '/api/messages/alice', { text: 'hey' }, b.token)).s, 201);
+  assert.equal((await call('GET', '/api/messages', null, a.token)).j.unread, 1);
+  assert.equal((await call('GET', '/api/messages/bob', null, a.token)).j.messages.length, 1);
+  assert.equal((await call('GET', '/api/messages', null, a.token)).j.unread, 0);
+  assert.equal((await call('POST', '/api/messages/bob', { text: '' }, a.token)).s, 400);
   { const r = await call('PATCH', '/api/me', { avatar: png }, a.token); assert.equal(r.s, 200); assert.ok(r.j.avatar.startsWith('/uploads/')); }
   assert.equal((await call('GET', '/api/search?q=hello', null, a.token)).j.posts.length, 1);
   assert.equal((await call('DELETE', `/api/posts/${id}/like`, null, b.token)).j.likes, 0);
