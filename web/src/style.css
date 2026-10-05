@@ -76,3 +76,11 @@ html,body{margin:0}
 .cm{max-height:180px;overflow:auto}.sug button.ghost,.sug button.primary{margin-left:auto}
 .out{color:var(--mut);font-size:13px;margin-left:8px}
 .prof h2{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.ig .primary{background:var(--blue);color:#fff!important;border-radius:8px;padding:10px 18px;font-weight:600}
+.ig .primary:disabled{opacity:.45}.ig .primary.sm{padding:6px 14px}
+.ig .ghost{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:6px 14px;font-weight:600}
+.ig .link{color:var(--mut)}.ig .sug .link{color:var(--blue)}
+.ig .comment button{color:var(--blue);font-weight:600}
+.ig .x{background:rgba(0,0,0,.5);color:#fff;border-radius:50%}
+.ig .liked{color:#ed4956}
+.ig .swap button{color:var(--blue);font-weight:600}
