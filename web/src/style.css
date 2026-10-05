@@ -281,3 +281,6 @@ html,body{background:#f6f3ed}
 /* Long discussions scroll without losing their close control. */
 .modal-tools{position:sticky;top:0;height:56px;z-index:3;background:var(--surface);border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 16px;font-size:12px;color:var(--mut)}.modal-tools .x{top:12px}.modal .meta p{overflow-wrap:anywhere;white-space:pre-wrap}.modal .comment{position:sticky;bottom:0;background:var(--surface);padding-bottom:12px;z-index:2}
 @media(max-width:700px){.comment input{font-size:16px}.modal .comment{padding-bottom:calc(12px + env(safe-area-inset-bottom))}}
+
+/* A biography keeps the line breaks its writer chose. */
+.prof .profile-name{font-weight:600;margin:14px 0 6px}.prof .profile-bio{white-space:pre-wrap;margin:0;font-weight:400}.stats{flex-wrap:wrap;row-gap:5px}.stats span{white-space:nowrap}
