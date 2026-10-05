@@ -135,9 +135,10 @@ route('GET', '/api/explore', true, async ({ me, url }) => {
 });
 route('GET', '/api/saved', true, async ({ me }) => ({ data: { posts: await shapeAll(await q(`${POST_SQL} WHERE p.id IN (SELECT post_id FROM saves WHERE user_id=$1) ORDER BY p.id DESC LIMIT 100`, me), me) } }));
 route('GET', '/api/search', true, async ({ me, url }) => {
-  const s = (url.searchParams.get('q') || '').trim().replace(/[%_\\]/g, ''); if (!s) return { data: { users: [] } };
+  const s = (url.searchParams.get('q') || '').trim().replace(/[%_\\]/g, ''); if (!s) return { data: { users: [], posts: [] } };
   const rows = await q('SELECT * FROM users WHERE handle_lc LIKE $1 OR lower(name) LIKE $2 LIMIT 20', s.toLowerCase() + '%', '%' + s.toLowerCase() + '%');
-  return { data: { users: await Promise.all(rows.map(u => publicUser(u, me))) } };
+  const prow = await q(`${POST_SQL} WHERE lower(p.caption) LIKE $1 ORDER BY p.id DESC LIMIT 30`, '%' + s.toLowerCase() + '%');
+  return { data: { users: await Promise.all(rows.map(u => publicUser(u, me))), posts: await shapeAll(prow, me) } };
 });
 route('GET', '/api/users/:handle', true, async ({ me, params }) => {
   const u = await userByHandle(params.handle);
