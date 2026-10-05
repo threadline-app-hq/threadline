@@ -93,11 +93,19 @@ function Create({ done }: { done: () => void }) {
     <button className="primary" disabled={!src || busy} onClick={async () => { setBusy(true); try { await api.createPost(src!, cap); done(); } catch (e: any) { setErr(e.message); setBusy(false); } }}>{busy ? 'Sharing…' : 'Share'}</button></div>;
 }
 
+function EditProfile({ me, onClose, onSaved }: { me: User; onClose: () => void; onSaved: (u: User) => void }) {
+  const [name, setName] = useState(me.name); const [bio, setBio] = useState(me.bio || ''); const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
+  const save = async (e: React.FormEvent) => { e.preventDefault(); setBusy(true); setErr(''); try { onSaved(await api.updateMe(name.trim() || me.handle, bio)); } catch (x: any) { setErr(x.message); setBusy(false); } };
+  return <div className="scrim" onClick={onClose}><form className="modal editm" onClick={e => e.stopPropagation()} onSubmit={save}>
+    <h3>Edit profile</h3><label>Name<input value={name} maxLength={60} onChange={e => setName(e.target.value)} /></label>
+    <label>Bio<textarea value={bio} maxLength={200} rows={3} onChange={e => setBio(e.target.value)} /></label><small className="mut">{bio.length}/200</small>
+    {err && <p className="err">{err}</p>}<div className="row"><button type="button" className="ghost" onClick={onClose}>Cancel</button><button className="primary" disabled={busy}>{busy ? 'Saving…' : 'Save'}</button></div></form></div>;
+}
 export function App() {
   const [me, setMe] = useState<User | null>(null); const [ready, setReady] = useState(!hasToken());
   const [tab, setTab] = useState<Tab>('home'); const [feed, setFeed] = useState<Post[]>([]); const [explore, setExplore] = useState<Post[]>([]); const [saved, setSaved] = useState<Post[]>([]);
   const [prof, setProf] = useState<{ user: User; posts: Post[] } | null>(null); const [open, setOpen] = useState<Post | null>(null); const [dark, setDark] = useState(() => localStorage.getItem('tl_dark') === '1');
-  const [entry, setEntry] = useState<'landing' | 'login' | 'signup'>('landing'); const [notifs, setNotifs] = useState<Notif[]>([]); const [unread, setUnread] = useState(0); const [q, setQ] = useState(''); const [results, setResults] = useState<User[]>([]); const [toast, setToast] = useState(''); const [loading, setLoading] = useState(false);
+  const [entry, setEntry] = useState<'landing' | 'login' | 'signup'>('landing'); const [editing, setEditing] = useState(false); const [notifs, setNotifs] = useState<Notif[]>([]); const [unread, setUnread] = useState(0); const [q, setQ] = useState(''); const [results, setResults] = useState<User[]>([]); const [toast, setToast] = useState(''); const [loading, setLoading] = useState(false);
   const say = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2600); };
   useEffect(() => { setOnAuthLost(() => { setMe(null); }); if (hasToken()) api.me().then(setMe).catch(() => setToken('')).finally(() => setReady(true)); }, []);
   useEffect(() => { localStorage.setItem('tl_dark', dark ? '1' : '0'); }, [dark]);
@@ -129,7 +137,8 @@ export function App() {
     <header className="top"><h1 className="logo">Threadline</h1><span><button onClick={() => setDark(!dark)} aria-label="Toggle dark mode"><Ic d={I.moon} /></button> <button onClick={logout} aria-label="Log out"><Ic d={I.close} /></button></span></header>
     <main key={tab + (prof?.user.handle || '')} className="page">
       {tab === 'home' && <div className="home"><section className="col">
-        {feed.length === 0 && !loading && <div className="empty"><p><b>Your feed is empty.</b></p><p>Follow people on Explore, or share your first photo.</p><p><button className="primary sm" onClick={() => setTab('explore')}>Find people</button></p></div>}
+        {feed.length === 0 && loading && [0, 1].map(i => <div key={i} className="post sk"><div className="sk-h"><i /><b /></div><div className="sk-m" /><div className="sk-l" /></div>)}
+        {feed.length === 0 && !loading && <div className="empty card"><div className="empty-ic"><Ic d={I.heart} size={30} /></div><p><b>Your feed is empty.</b></p><p>Follow people on Explore, or share your first photo.</p><p><button className="primary sm" onClick={() => setTab('explore')}>Find people</button></p></div>}
         {feed.map(card)}</section>
         <aside className="rail"><div className="meu"><Avatar handle={me.handle} name={me.name} size={46} /><div><b>{me.handle}</b><small>{me.name}</small></div></div></aside></div>}
       {tab === 'explore' && <div className="wide"><div className="search"><Ic d={I.search} size={18} /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Search people" /></div>
@@ -143,11 +152,13 @@ export function App() {
           {n.image && <img src={img(n.image)} alt="" />}</div>)}</div>}
       {tab === 'saved' && <div className="wide"><h2>Saved</h2><Grid posts={saved} onOpen={setOpen} /></div>}
       {tab === 'profile' && prof && <div className="wide"><div className="prof"><Avatar handle={prof.user.handle} name={prof.user.name} size={96} story /><div><h2>{prof.user.handle}
+        {prof.user.id === me.id && <button className="ghost" onClick={() => setEditing(true)}>Edit profile</button>}
         {prof.user.id !== me.id && <button className={prof.user.followedByMe ? 'ghost' : 'primary sm'} onClick={() => follow(prof.user)}>{prof.user.followedByMe ? 'Following' : 'Follow'}</button>}</h2>
         <div className="stats"><span><b>{prof.user.posts}</b> posts</span><span><b>{prof.user.followers}</b> followers</span><span><b>{prof.user.following}</b> following</span></div><p><b>{prof.user.name}</b><br />{prof.user.bio}</p></div></div><Grid posts={prof.posts} onOpen={setOpen} /></div>}
     </main>
     <nav className="bottom">{nav.filter(([t]) => t !== 'saved').map(([t, d]) => <button key={t} className={tab === t ? 'on' : ''} onClick={() => go(t)} aria-label={t}><Ic d={d} fill={tab === t && t !== 'create'} />{badge(t)}</button>)}</nav>
     {open && <Modal post={open} me={me} onChange={upd} onClose={() => setOpen(null)} onUser={loadProfile} onDelete={del} />}
+    {editing && <EditProfile me={me} onClose={() => setEditing(false)} onSaved={u => { setMe(u); setEditing(false); loadProfile(u.handle); say('Profile updated'); }} />}
     {toast && <div className="toast" role="status">{toast}</div>}
   </div>;
 }
