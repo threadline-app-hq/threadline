@@ -41,7 +41,8 @@ CREATE INDEX IF NOT EXISTS idx_follows_followee ON follows(followee);
 CREATE INDEX IF NOT EXISTS idx_likes_post ON likes(post_id);
 CREATE INDEX IF NOT EXISTS idx_saves_post ON saves(post_id);
 CREATE TABLE IF NOT EXISTS notifications(id SERIAL PRIMARY KEY, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, actor INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, type TEXT NOT NULL, post_id INT REFERENCES posts(id) ON DELETE CASCADE, text TEXT NOT NULL DEFAULT '', created BIGINT NOT NULL, seen BOOLEAN NOT NULL DEFAULT FALSE);
-CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(user_id, id)`;
+CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(user_id, id);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS recovery TEXT`;
 
 let pool;
 export async function initDb(p) {
@@ -57,6 +58,8 @@ const count = async (sql, ...a) => Number((await one(sql, ...a)).c);
 // ---- auth: scrypt password hashes, HMAC-signed bearer tokens (30 days)
 const b64 = b => Buffer.from(b).toString('base64url');
 const hashPw = pw => { const s = crypto.randomBytes(16); return s.toString('hex') + ':' + crypto.scryptSync(pw, s, 64).toString('hex'); };
+const newCode = () => { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; const b = crypto.randomBytes(12); let o = ''; for (let i = 0; i < 12; i++) { o += a[b[i] % 32]; if (i % 4 === 3 && i < 11) o += '-'; } return o; };
+const codeHash = (c, h) => crypto.createHash('sha256').update(h.toLowerCase() + ':' + String(c).toUpperCase().replace(/[^A-Z0-9]/g, '')).digest('hex');
 const checkPw = (pw, stored) => { const [s, h] = stored.split(':'); const x = crypto.scryptSync(pw, Buffer.from(s, 'hex'), 64); return crypto.timingSafeEqual(x, Buffer.from(h, 'hex')); };
 const sign = uid => { const body = b64(JSON.stringify({ uid, exp: Date.now() + 30 * 864e5 })); return body + '.' + crypto.createHmac('sha256', SECRET).update(body).digest('base64url'); };
 const verify = tok => {
@@ -126,10 +129,23 @@ route('POST', '/api/auth/signup', false, async ({ body, ip }) => {
   if (!/^[a-zA-Z0-9._]{3,30}$/.test(handle)) bad(400, 'Handle must be 3-30 letters, numbers, dots or underscores');
   if (pw.length < 8) bad(400, 'Password must be at least 8 characters');
   if (await one('SELECT 1 x FROM users WHERE handle_lc=$1', handle.toLowerCase())) bad(409, 'That handle is taken');
-  let u;
-  try { u = await one('INSERT INTO users(handle,handle_lc,name,pw,created) VALUES($1,$2,$3,$4,$5) RETURNING *', handle, handle.toLowerCase(), name, hashPw(pw), Date.now()); }
+  let u; const code = newCode();
+  try { u = await one('INSERT INTO users(handle,handle_lc,name,pw,created,recovery) VALUES($1,$2,$3,$4,$5,$6) RETURNING *', handle, handle.toLowerCase(), name, hashPw(pw), Date.now(), codeHash(code, handle)); }
   catch (e) { if (e.code === '23505') bad(409, 'That handle is taken'); throw e; }
-  return { status: 201, data: { token: sign(u.id), user: await publicUser(u, u.id) } };
+  return { status: 201, data: { token: sign(u.id), user: await publicUser(u, u.id), recoveryCode: code } };
+});
+route('POST', '/api/auth/reset', false, async ({ body, ip }) => {
+  if (limited(ip, 'reset', 8, 3600e3)) bad(429, 'Too many attempts, try again later');
+  const pw = String(body.password || ''); if (pw.length < 8) bad(400, 'Password must be at least 8 characters');
+  const u = await one('SELECT * FROM users WHERE handle_lc=$1', String(body.handle || '').toLowerCase());
+  const ok = u && u.recovery && crypto.timingSafeEqual(Buffer.from(codeHash(body.code || '', u.handle)), Buffer.from(u.recovery));
+  if (!ok) bad(401, 'Handle or recovery code is wrong');
+  const code = newCode(); await run('UPDATE users SET pw=$1, recovery=$2 WHERE id=$3', hashPw(pw), codeHash(code, u.handle), u.id);
+  return { data: { token: sign(u.id), user: await publicUser(u, u.id), recoveryCode: code } };
+});
+route('POST', '/api/auth/recovery-code', true, async ({ me, body }) => {
+  const u = await one('SELECT * FROM users WHERE id=$1', me); if (!checkPw(String(body.password || ''), u.pw)) bad(401, 'Wrong password');
+  const code = newCode(); await run('UPDATE users SET recovery=$1 WHERE id=$2', codeHash(code, u.handle), me); return { data: { recoveryCode: code } };
 });
 route('POST', '/api/auth/login', false, async ({ body, ip }) => {
   if (limited(ip, 'login', 20, 15 * 60e3)) bad(429, 'Too many attempts, try again in a few minutes');
