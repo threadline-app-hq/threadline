@@ -34,9 +34,15 @@ export const api = {
   comment: (id: number, text: string) => call<Post>('POST', `/api/posts/${id}/comments`, { text }),
   createPost: (image: string, caption: string) => call<Post>('POST', '/api/posts', { image, caption }),
   updateMe: (name: string, bio: string, avatar?: string) => call<User>('PATCH', '/api/me', { name, bio, ...(avatar ? { avatar } : {}) }),
+  conversations: () => call<{ conversations: Convo[]; unread: number }>('GET', '/api/messages'),
+  thread: (h: string) => call<{ user: Mini; messages: Msg[] }>('GET', '/api/messages/' + encodeURIComponent(h)),
+  send: (h: string, text: string) => call<Msg>('POST', '/api/messages/' + encodeURIComponent(h), { text }),
   notifications: () => call<{ items: Notif[]; unread: number }>('GET', '/api/notifications'),
   readNotifications: () => call<null>('POST', '/api/notifications/read'),
   deletePost: (id: number) => call<null>('DELETE', `/api/posts/${id}`),
 };
 
 export type Notif = { id: number; type: 'like' | 'comment' | 'follow'; postId: number | null; text: string; created: number; seen: boolean; user: { handle: string; name: string; avatar?: string | null }; image: string | null };
+
+export type Msg = { id: number; mine: boolean; text: string; created: number };
+export type Convo = { user: Mini; text: string; created: number; mine: boolean; unread: number };
