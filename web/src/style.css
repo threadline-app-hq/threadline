@@ -335,3 +335,5 @@ html,body{background:#f6f3ed}
 .search-person small{white-space:normal;overflow:visible;text-overflow:clip}
 .search-person .search-followers{font-size:11px;margin-top:5px}
 .search-empty{overflow-wrap:anywhere}
+/* Preserve the paragraph breaks chosen in captions and comments in the feed too. */
+.post .meta p{white-space:pre-wrap}
