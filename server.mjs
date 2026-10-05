@@ -99,6 +99,20 @@ const POST_SQL = 'SELECT p.id, p.user_id, p.image, p.caption, p.created, u.handl
 const page = (url, def = 20) => { const l = Math.min(Number(url.searchParams.get('limit')) || def, 50); const before = Number(url.searchParams.get('before')) || 2e9; return { l, before }; };
 const userByHandle = async h => (await one('SELECT * FROM users WHERE handle_lc=$1', String(h).toLowerCase())) || bad(404, 'User not found');
 
+// ---- image storage: Supabase Storage when configured (SUPABASE_URL + SUPABASE_SERVICE_KEY), else Postgres bytea. Falls back to Postgres if an upload fails.
+const SB_URL = (process.env.SUPABASE_URL || '').replace(/\/$/, ''), SB_KEY = process.env.SUPABASE_SERVICE_KEY || '', SB_BUCKET = process.env.SUPABASE_BUCKET || 'threadline';
+const saveImage = async (buf, ext) => {
+  if (SB_URL && SB_KEY) {
+    const key = 's_' + crypto.randomUUID() + '.' + ext;
+    try {
+      const r = await fetch(`${SB_URL}/storage/v1/object/${SB_BUCKET}/${key}`, { method: 'POST', headers: { authorization: 'Bearer ' + SB_KEY, 'content-type': MIME[ext] }, body: buf, signal: AbortSignal.timeout(15000) });
+      if (r.ok) return key; console.error('storage upload failed', r.status);
+    } catch (e) { console.error('storage upload error', e.message); }
+  }
+  const key = crypto.randomUUID() + '.' + ext; await run('INSERT INTO images(key,mime,data) VALUES($1,$2,$3)', key, MIME[ext], buf); return key;
+};
+const dropImage = async key => { if (key.startsWith('s_') && SB_URL && SB_KEY) fetch(`${SB_URL}/storage/v1/object/${SB_BUCKET}/${key}`, { method: 'DELETE', headers: { authorization: 'Bearer ' + SB_KEY } }).catch(() => {}); else await run('DELETE FROM images WHERE key=$1', key); };
+
 const sniff = b => b[0] === 0xff && b[1] === 0xd8 ? 'jpg' : b.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ? 'png'
   : b.subarray(0, 4).toString() === 'RIFF' && b.subarray(8, 12).toString() === 'WEBP' ? 'webp' : null;
 
@@ -130,8 +144,7 @@ route('PATCH', '/api/me', true, async ({ me, body }) => {
   if (body.avatar) {
     const m = /^data:image\/(?:jpeg|png|webp);base64,(.+)$/.exec(String(body.avatar)) || bad(400, 'avatar must be a jpeg, png or webp data URL');
     const buf = Buffer.from(m[1], 'base64'); if (!buf.length || buf.length > 1024 * 1024) bad(413, 'Avatar must be under 1 MB');
-    const ext = sniff(buf) || bad(400, 'Unsupported or corrupt image'); avatarKey = crypto.randomUUID() + '.' + ext;
-    await run('INSERT INTO images(key,mime,data) VALUES($1,$2,$3)', avatarKey, MIME[ext], buf);
+    const ext = sniff(buf) || bad(400, 'Unsupported or corrupt image'); avatarKey = await saveImage(buf, ext);
   }
   if (avatarKey) await run('UPDATE users SET avatar=$1 WHERE id=$2', avatarKey, me);
   await run('UPDATE users SET name=COALESCE($1,name), bio=COALESCE($2,bio) WHERE id=$3', body.name ? String(body.name).slice(0, 60) : null, body.bio != null ? String(body.bio).slice(0, 200) : null, me);
@@ -171,15 +184,14 @@ route('POST', '/api/posts', true, async ({ me, body, ip }) => {
   const m = /^data:image\/(?:jpeg|png|webp);base64,(.+)$/.exec(String(body.image || '')) || bad(400, 'image must be a base64 data URL (jpeg, png or webp)');
   const buf = Buffer.from(m[1], 'base64'); if (!buf.length || buf.length > MAX_IMAGE) bad(413, 'Image must be under 8 MB');
   const ext = sniff(buf) || bad(400, 'Unsupported or corrupt image');
-  const key = crypto.randomUUID() + '.' + ext;
-  await run('INSERT INTO images(key,mime,data) VALUES($1,$2,$3)', key, MIME[ext], buf);
+  const key = await saveImage(buf, ext);
   const r = await one('INSERT INTO posts(user_id,image,caption,created) VALUES($1,$2,$3,$4) RETURNING id', me, key, String(body.caption || '').slice(0, 2200), Date.now());
   return { status: 201, data: await shapePost(await one(`${POST_SQL} WHERE p.id=$1`, r.id), me) };
 });
 const getPost = async id => { if (!/^\d{1,9}$/.test(id)) bad(404, 'Post not found'); return (await one(`${POST_SQL} WHERE p.id=$1`, Number(id))) || bad(404, 'Post not found'); };
 route('DELETE', '/api/posts/:id', true, async ({ me, params }) => {
   const p = await getPost(params.id); if (p.user_id !== me) bad(403, 'Not your post');
-  await run('DELETE FROM posts WHERE id=$1', p.id); await run('DELETE FROM images WHERE key=$1', p.image); return { status: 204 };
+  await run('DELETE FROM posts WHERE id=$1', p.id); await dropImage(p.image); return { status: 204 };
 });
 const toggle = (method, tail, sql, kind) => route(method, '/api/posts/:id/' + tail, true, async ({ me, params }) => { const p = await getPost(params.id); const r = await run(sql, me, p.id); if (kind && r.rowCount) await notify(p.user_id, me, kind, p.id); return { data: await shapePost(p, me) }; });
 toggle('POST', 'like', 'INSERT INTO likes VALUES($1,$2) ON CONFLICT DO NOTHING', 'like');
@@ -201,8 +213,7 @@ route('POST', '/api/stories', true, async ({ me, body, ip }) => {
   if (limited(ip, 'story', 30, 3600e3)) bad(429, 'Posting too fast');
   const m = /^data:image\/(?:jpeg|png|webp);base64,(.+)$/.exec(String(body.image || '')) || bad(400, 'image must be a base64 data URL (jpeg, png or webp)');
   const buf = Buffer.from(m[1], 'base64'); if (!buf.length || buf.length > MAX_IMAGE) bad(413, 'Image must be under 8 MB');
-  const ext = sniff(buf) || bad(400, 'Unsupported or corrupt image'); const key = crypto.randomUUID() + '.' + ext;
-  await run('INSERT INTO images(key,mime,data) VALUES($1,$2,$3)', key, MIME[ext], buf);
+  const ext = sniff(buf) || bad(400, 'Unsupported or corrupt image'); const key = await saveImage(buf, ext);
   const r = await one('INSERT INTO stories(user_id,image,created) VALUES($1,$2,$3) RETURNING id', me, key, Date.now());
   return { status: 201, data: { id: r.id } };
 });
@@ -242,7 +253,7 @@ const readBody = (req, max = 12 * 1024 * 1024) => new Promise((res, rej) => {
 });
 
 export const server = http.createServer(async (req, res) => {
-  const headers = { 'access-control-allow-origin': ORIGIN, 'access-control-allow-headers': 'authorization,content-type', 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS', 'x-content-type-options': 'nosniff', 'x-frame-options': 'DENY', 'referrer-policy': 'strict-origin-when-cross-origin', 'strict-transport-security': 'max-age=31536000; includeSubDomains', 'permissions-policy': 'camera=(), microphone=(), geolocation=()', 'content-security-policy': "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" };
+  const headers = { 'access-control-allow-origin': ORIGIN, 'access-control-allow-headers': 'authorization,content-type', 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS', 'x-content-type-options': 'nosniff', 'x-frame-options': 'DENY', 'referrer-policy': 'strict-origin-when-cross-origin', 'strict-transport-security': 'max-age=31536000; includeSubDomains', 'permissions-policy': 'camera=(), microphone=(), geolocation=()', 'content-security-policy': "default-src 'self'; img-src 'self' data: blob: https://*.supabase.co; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" };
   const t0 = Date.now(); const rid = crypto.randomUUID().slice(0, 8); headers['x-request-id'] = rid;
   res.on('finish', () => { const ms = Date.now() - t0; stats.n++; stats.ms += ms; if (res.statusCode >= 500) stats.e5++; else if (res.statusCode >= 400) stats.e4++; if (process.env.NODE_ENV === 'production' && !req.url.startsWith('/assets')) console.log(JSON.stringify({ rid, m: req.method, u: req.url.split('?')[0], s: res.statusCode, ms })); });
   const send = (status, data) => { if (data === undefined) { res.writeHead(status, headers); return res.end(); } const json = Buffer.from(JSON.stringify(data));
@@ -252,6 +263,8 @@ export const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://x'); const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').toString().split(',')[0].trim();
     if (req.method === 'OPTIONS') return send(204);
     if (url.pathname.startsWith('/uploads/') && req.method === 'GET') {
+      const k = url.pathname.slice(9);
+      if (k.startsWith('s_') && SB_URL && /^s_[0-9a-f-]{36}\.(jpg|png|webp)$/.test(k)) { res.writeHead(302, { ...headers, location: `${SB_URL}/storage/v1/object/public/${SB_BUCKET}/${k}`, 'cache-control': 'public, max-age=31536000, immutable' }); return res.end(); }
       const img = await one('SELECT mime, data FROM images WHERE key=$1', url.pathname.slice(9));
       if (!img) return send(404, { error: 'Not found' });
       res.writeHead(200, { ...headers, 'content-type': img.mime, 'content-length': img.data.length, 'cache-control': 'public, max-age=31536000, immutable' });
