@@ -192,10 +192,7 @@ route('GET', '/api/search', true, async ({ me, url }) => {
   const prow = await q(`${POST_SQL} WHERE lower(p.caption) LIKE $1 ORDER BY p.id DESC LIMIT 30`, '%' + s.toLowerCase() + '%');
   return { data: { users: await Promise.all(rows.map(u => publicUser(u, me))), posts: await shapeAll(prow, me) } };
 });
-route('GET', '/api/users/:handle', true, async ({ me, params }) => {
-  const u = await userByHandle(params.handle);
-  return { data: { user: await publicUser(u, me), posts: await shapeAll(await q(`${POST_SQL} WHERE p.user_id=$1 ORDER BY p.id DESC LIMIT 60`, u.id), me) } };
-});
+route('GET', '/api/users/:handle', true, async ({ me, params,url }) => {const u=await userByHandle(params.handle);const{l,before}=page(url,24);const rows=await q(`${POST_SQL} WHERE p.user_id=$1 AND p.id<$2 ORDER BY p.id DESC LIMIT $3`,u.id,before,l);return{data:{user:await publicUser(u,me),posts:await shapeAll(rows,me),next:rows.length===l?rows[rows.length-1].id:null}};});
 route('POST', '/api/users/:handle/follow', true, async ({ me, params }) => {
   const u = await userByHandle(params.handle); if (u.id === me) bad(400, 'You cannot follow yourself');
   if ((await run('INSERT INTO follows VALUES($1,$2) ON CONFLICT DO NOTHING', me, u.id)).rowCount) await notify(u.id, me, 'follow', null); return { data: await publicUser(u, me) };
@@ -247,8 +244,9 @@ route('DELETE','/api/stories/:id',true,async({me,params})=>{if(!/^\d{1,9}$/.test
 route('GET', '/api/messages', true, async ({ me }) => {
   const rows = await q('SELECT m.id,m.sender,m.recipient,m.text,m.created,m.seen FROM messages m WHERE m.sender=$1 OR m.recipient=$1 ORDER BY m.id DESC LIMIT 400', me);
   const seen = new Map(); for (const r of rows) { const other = r.sender === me ? r.recipient : r.sender; if (!seen.has(other)) seen.set(other, { last: r, unread: 0 }); if (r.recipient === me && !r.seen) seen.get(other).unread++; }
+  const unreadBy=new Map((await q('SELECT sender,COUNT(*) c FROM messages WHERE recipient=$1 AND NOT seen GROUP BY sender',me)).map(r=>[r.sender,Number(r.c)]));
   const out = [];
-  for (const [id, v] of seen) { const u = await one('SELECT id,handle,name,avatar FROM users WHERE id=$1', id); if (u) out.push({ user: { id: u.id, handle: u.handle, name: u.name, avatar: u.avatar ? '/uploads/' + u.avatar : null }, text: v.last.text, created: v.last.created, mine: v.last.sender === me, unread: v.unread }); }
+  for (const [id, v] of seen) { const u = await one('SELECT id,handle,name,avatar FROM users WHERE id=$1', id); if (u) out.push({ user: { id: u.id, handle: u.handle, name: u.name, avatar: u.avatar ? '/uploads/' + u.avatar : null }, text: v.last.text, created: v.last.created, mine: v.last.sender === me, unread: unreadBy.get(id)||0 }); }
   return { data: { conversations: out, unread:await count('SELECT COUNT(*) c FROM messages WHERE recipient=$1 AND NOT seen',me) } };
 });
 route('GET', '/api/messages/:handle', true, async ({ me, params }) => {
@@ -268,7 +266,7 @@ route('GET', '/api/notifications', true, async ({ me }) => {
   const rows = await q('SELECT n.id,n.type,n.post_id,n.text,n.created,n.seen,u.handle,u.name,u.avatar,p.image FROM notifications n JOIN users u ON u.id=n.actor LEFT JOIN posts p ON p.id=n.post_id WHERE n.user_id=$1 ORDER BY n.id DESC LIMIT 60', me);
   return { data: { items: rows.map(r => ({ id: r.id, type: r.type, postId: r.post_id, text: r.text, created: r.created, seen: r.seen, user: { handle: r.handle, name: r.name, avatar: r.avatar ? '/uploads/' + r.avatar : null }, image: r.image ? '/uploads/' + r.image : null })), unread: await count('SELECT COUNT(*) c FROM notifications WHERE user_id=$1 AND NOT seen', me) } };
 });
-route('POST', '/api/notifications/read', true, async ({ me }) => { await run('UPDATE notifications SET seen=TRUE WHERE user_id=$1 AND NOT seen', me); return { status: 204 }; });
+route('POST', '/api/notifications/read', true, async ({ me,body }) => {const through=body.throughId;if(through!==undefined&&(!Number.isSafeInteger(through)||through<1))bad(400,'Invalid notification boundary');if(through!==undefined)await run('UPDATE notifications SET seen=TRUE WHERE user_id=$1 AND NOT seen AND id<=$2',me,through);else await run('UPDATE notifications SET seen=TRUE WHERE user_id=$1 AND NOT seen',me);return {status:204};});
 route('GET', '/api/metrics', false, async ({ ip }) => ({ data: { uptimeSec: Math.round(process.uptime()), requests: stats.n, errors5xx: stats.e5, errors4xx: stats.e4, avgMs: stats.n ? Math.round(stats.ms / stats.n) : 0, memMB: Math.round(process.memoryUsage().rss / 1048576), version: '2.1' } }));
 route('GET', '/api/health', false, async () => { await one('SELECT 1 x'); return { data: { ok: true } }; });
 

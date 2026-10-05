@@ -33,7 +33,7 @@ export const api = {
   explore: (before?: number) => call<{ posts: Post[]; next: number | null }>('GET', '/api/explore?limit=24' + (before ? '&before=' + before : '')),
   saved: () => call<{ posts: Post[] }>('GET', '/api/saved'),
   search: (q: string) => call<{ users: User[]; posts: Post[] }>('GET', '/api/search?q=' + encodeURIComponent(q)),
-  profile: (h: string) => call<{ user: User; posts: Post[] }>('GET', '/api/users/' + encodeURIComponent(h)),
+  profile: (h: string,before?:number) => call<{ user: User; posts: Post[];next:number|null }>('GET', '/api/users/' + encodeURIComponent(h)+(before?'?before='+before:'')),
   follow: (h: string, on: boolean) => call<User>(on ? 'POST' : 'DELETE', `/api/users/${encodeURIComponent(h)}/follow`),
   like: (id: number, on: boolean) => call<Post>(on ? 'POST' : 'DELETE', `/api/posts/${id}/like`),
   save: (id: number, on: boolean) => call<Post>(on ? 'POST' : 'DELETE', `/api/posts/${id}/save`),
@@ -49,7 +49,7 @@ export const api = {
   thread: (h: string) => call<{ user: Mini; messages: Msg[] }>('GET', '/api/messages/' + encodeURIComponent(h)),
   send: (h: string, text: string) => call<Msg>('POST', '/api/messages/' + encodeURIComponent(h), { text }),
   notifications: () => call<{ items: Notif[]; unread: number }>('GET', '/api/notifications'),
-  readNotifications: () => call<null>('POST', '/api/notifications/read'),
+  readNotifications: (throughId:number) => call<null>('POST', '/api/notifications/read',{throughId}),
   deletePost: (id: number) => call<null>('DELETE', `/api/posts/${id}`),
 };
 
