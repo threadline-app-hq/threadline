@@ -352,3 +352,5 @@ html,body{background:#f6f3ed}
 .create .drop{position:relative}.photo-reading{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:color-mix(in srgb,var(--bg) 92%,transparent);color:var(--fg);font-size:13px}
 
 .feed-start{margin-top:24px;max-width:none}.feed-start>p{max-width:350px}.feed-start h2{font-size:18px;font-weight:500;letter-spacing:normal;margin:0 0 12px}
+
+.avatar-status{font-size:12px;line-height:1.6;color:var(--mut);margin:0}
