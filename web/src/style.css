@@ -295,3 +295,6 @@ html,body{background:#f6f3ed}
 
 /* Tall photographs stay whole without becoming several screens of scrolling. */
 .home .media:not(.awaiting){display:flex;align-items:center;justify-content:center}.home .media:not(.awaiting) img{width:auto;max-width:100%;height:auto;max-height:min(78dvh,760px);object-fit:contain}
+
+/* Messages keep their paragraphs; identity cannot push the controls off-screen. */
+.message-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}.bub{flex-shrink:0;line-height:1.6}.bub small{opacity:1;color:inherit;font-size:11px;line-height:1.4;margin-top:8px}.dm-h>.ghost{flex:none;min-height:44px}.dm-u{min-width:0;flex:1;min-height:44px;text-align:left}.dm-u b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}.convo b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.convo>small,.convo>.badge{flex:none}.convo{gap:10px}.dm-body{min-height:0}
