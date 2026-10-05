@@ -298,3 +298,8 @@ html,body{background:#f6f3ed}
 
 /* Messages keep their paragraphs; identity cannot push the controls off-screen. */
 .message-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}.bub{flex-shrink:0;line-height:1.6}.bub small{opacity:1;color:inherit;font-size:11px;line-height:1.4;margin-top:8px}.dm-h>.ghost{flex:none;min-height:44px}.dm-u{min-width:0;flex:1;min-height:44px;text-align:left}.dm-u b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}.convo b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.convo>small,.convo>.badge{flex:none}.convo{gap:10px}.dm-body{min-height:0}
+
+/* A composer has space for a paragraph, with an explicit Send control. */
+.dm-in{align-items:flex-end;flex-shrink:0}.dm-in textarea{flex:1;min-width:0;min-height:64px;max-height:140px;resize:vertical;background:var(--bg);color:inherit;border:1px solid var(--line);padding:11px 12px;font:16px/1.5 'Instrument Sans',sans-serif;overflow-wrap:anywhere}.dm-in textarea:disabled{opacity:.65}.dm-in textarea::placeholder{color:var(--mut);opacity:1}.dm-in button{min-height:44px}
+@media(max-height:560px){.dm-in textarea{min-height:48px;max-height:90px;padding-block:8px}.dm-in{padding-top:8px}}
+@media(max-height:560px) and (max-width:700px){.dm{min-height:0;height:calc(100dvh - 142px - env(safe-area-inset-top) - env(safe-area-inset-bottom));padding-block:8px}.dm-h{padding-bottom:6px}.dm-body{padding-block:8px}.dm-in textarea{height:48px;resize:none}.dm-in{padding-top:6px}}
