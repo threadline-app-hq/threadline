@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { api, hasToken, setToken, setOnAuthLost, img, Post, User, Comment, Notif } from './api';
+import { api, hasToken, setToken, setOnAuthLost, img, Post, User, Comment, Notif, Convo, Msg, Mini } from './api';
 import { Landing } from './Landing';
 import './style.css';
 
-type Tab = 'home' | 'explore' | 'create' | 'activity' | 'saved' | 'profile';
+type Tab = 'home' | 'explore' | 'create' | 'messages' | 'activity' | 'saved' | 'profile';
 const Ic = ({ d, fill, size = 24 }: { d: string; fill?: boolean; size?: number }) =>
   <svg width={size} height={size} viewBox="0 0 24 24" fill={fill ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
 const I = {
@@ -11,6 +11,7 @@ const I = {
   heart: 'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z',
   comment: 'M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 20.5l1.6-5.5A8.4 8.4 0 1 1 21 11.5z', bookmark: 'M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z',
   user: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8z', close: 'M18 6L6 18M6 6l12 12', moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
+  send: 'M22 2L11 13M22 2l-7 20-4-9-9-4z',
   bell: 'M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0',
   trash: 'M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6',
 };
@@ -93,6 +94,23 @@ function Create({ done }: { done: () => void }) {
     <button className="primary" disabled={!src || busy} onClick={async () => { setBusy(true); try { await api.createPost(src!, cap); done(); } catch (e: any) { setErr(e.message); setBusy(false); } }}>{busy ? 'Sharing…' : 'Share'}</button></div>;
 }
 
+function Messages({ me, to, setTo, onUser, onRead }: { me: User; to: string | null; setTo: (h: string | null) => void; onUser: (h: string) => void; onRead: () => void }) {
+  const [convos, setConvos] = useState<Convo[]>([]); const [thread, setThread] = useState<{ user: Mini; messages: Msg[] } | null>(null); const [text, setText] = useState(''); const [err, setErr] = useState(''); const end = useRef<HTMLDivElement>(null);
+  const loadList = () => api.conversations().then(r => setConvos(r.conversations)).catch(() => {});
+  useEffect(() => { if (to) return; loadList(); const t = setInterval(loadList, 15000); return () => clearInterval(t); }, [to]);
+  useEffect(() => { if (!to) { setThread(null); return; } let on = true; const pull = () => api.thread(to).then(r => { if (on) { setThread(r); onRead(); } }).catch(e => on && setErr(e.message)); pull(); const t = setInterval(pull, 4000); return () => { on = false; clearInterval(t); }; }, [to]);
+  useEffect(() => { end.current?.scrollIntoView({ behavior: 'smooth' }); }, [thread?.messages.length]);
+  const send = async (e: React.FormEvent) => { e.preventDefault(); const v = text.trim(); if (!v || !to) return; setText(''); setErr('');
+    try { const m = await api.send(to, v); setThread(t => t && { ...t, messages: [...t.messages, m] }); } catch (x: any) { setErr(x.message); setText(v); } };
+  if (to) return <div className="wide dm"><div className="dm-h"><button className="ghost" onClick={() => setTo(null)}>← Back</button>{thread && <button className="dm-u" onClick={() => onUser(thread.user.handle)}><Avatar handle={thread.user.handle} name={thread.user.name} size={36} src={thread.user.avatar} /><b>{thread.user.handle}</b></button>}</div>
+    <div className="dm-body">{thread && thread.messages.length === 0 && <p className="empty">Say hi to {thread.user.name}.</p>}
+      {thread?.messages.map(m => <div key={m.id} className={'bub ' + (m.mine ? 'me' : 'them')}>{m.text}<small>{ago(m.created)}</small></div>)}<div ref={end} /></div>
+    {err && <p className="err" role="alert">{err}</p>}
+    <form className="dm-in" onSubmit={send}><input value={text} onChange={e => setText(e.target.value)} placeholder="Message…" maxLength={1000} /><button className="primary" disabled={!text.trim()}>Send</button></form></div>;
+  return <div className="wide"><h2>Messages</h2>
+    {convos.length === 0 && <p className="empty">No conversations yet. Open someone's profile and tap Message.</p>}
+    {convos.map(c => <button key={c.user.id} className={'convo' + (c.unread ? ' new' : '')} onClick={() => setTo(c.user.handle)}><Avatar handle={c.user.handle} name={c.user.name} size={48} src={c.user.avatar} /><div><b>{c.user.handle}</b><span>{c.mine ? 'You: ' : ''}{c.text}</span></div>{c.unread > 0 && <i className="badge static">{c.unread}</i>}<small>{ago(c.created)}</small></button>)}</div>;
+}
 function More({ on, busy, onVisible }: { on: boolean; busy: boolean; onVisible: () => void }) {
   const ref = useRef<HTMLDivElement>(null); const cb = useRef(onVisible); cb.current = onVisible;
   useEffect(() => { const el = ref.current; if (!el || !on) return; const o = new IntersectionObserver(([e]) => { if (e.isIntersecting) cb.current(); }, { rootMargin: '600px' }); o.observe(el); return () => o.disconnect(); }, [on, busy]);
@@ -111,7 +129,7 @@ export function App() {
   const [me, setMe] = useState<User | null>(null); const [ready, setReady] = useState(!hasToken());
   const [tab, setTab] = useState<Tab>('home'); const [feed, setFeed] = useState<Post[]>([]); const [explore, setExplore] = useState<Post[]>([]); const [saved, setSaved] = useState<Post[]>([]);
   const [prof, setProf] = useState<{ user: User; posts: Post[] } | null>(null); const [open, setOpen] = useState<Post | null>(null); const [dark, setDark] = useState(() => localStorage.getItem('tl_dark') === '1');
-  const [entry, setEntry] = useState<'landing' | 'login' | 'signup'>('landing'); const [feedNext, setFeedNext] = useState<number | null>(null); const [exploreNext, setExploreNext] = useState<number | null>(null); const [more, setMore] = useState(false); const [editing, setEditing] = useState(false); const [notifs, setNotifs] = useState<Notif[]>([]); const [unread, setUnread] = useState(0); const [q, setQ] = useState(''); const [results, setResults] = useState<User[]>([]); const [postHits, setPostHits] = useState<Post[]>([]); const [toast, setToast] = useState(''); const [loading, setLoading] = useState(false);
+  const [entry, setEntry] = useState<'landing' | 'login' | 'signup'>('landing'); const [feedNext, setFeedNext] = useState<number | null>(null); const [exploreNext, setExploreNext] = useState<number | null>(null); const [more, setMore] = useState(false); const [dmTo, setDmTo] = useState<string | null>(null); const [dmUnread, setDmUnread] = useState(0); const [editing, setEditing] = useState(false); const [notifs, setNotifs] = useState<Notif[]>([]); const [unread, setUnread] = useState(0); const [q, setQ] = useState(''); const [results, setResults] = useState<User[]>([]); const [postHits, setPostHits] = useState<Post[]>([]); const [toast, setToast] = useState(''); const [loading, setLoading] = useState(false);
   const say = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2600); };
   useEffect(() => { setOnAuthLost(() => { setMe(null); }); if (hasToken()) api.me().then(setMe).catch(() => setToken('')).finally(() => setReady(true)); }, []);
   useEffect(() => { localStorage.setItem('tl_dark', dark ? '1' : '0'); }, [dark]);
@@ -121,7 +139,7 @@ export function App() {
     try { const [f, e, s] = await Promise.all([api.feed(), api.explore(), api.saved()]); setFeed(f.posts); setFeedNext(f.next); setExplore(e.posts); setExploreNext(e.next); setSaved(s.posts); if (tab === 'profile' && prof) setProf(await api.profile(prof.user.handle)); } catch (e: any) { say(e.message); } finally { setLoading(false); }
   }, [me, tab, prof?.user.handle]);
   useEffect(() => { if (me) refresh(); }, [me, tab]);
-  useEffect(() => { if (!me) return; const pull = () => api.notifications().then(r => { setNotifs(r.items); setUnread(r.unread); }).catch(() => {}); pull(); const t = setInterval(pull, 30000); return () => clearInterval(t); }, [me]);
+  useEffect(() => { if (!me) return; const pull = () => api.notifications().then(r => { setNotifs(r.items); setUnread(r.unread); }).catch(() => {}); api.conversations().then(r => setDmUnread(r.unread)).catch(() => {}); pull(); const t = setInterval(pull, 30000); return () => clearInterval(t); }, [me]);
   useEffect(() => { if (tab === 'activity' && unread) { const t = setTimeout(() => api.readNotifications().then(() => setUnread(0)).catch(() => {}), 1200); return () => clearTimeout(t); } }, [tab, unread]);
   useEffect(() => { if (!q.trim()) { setResults([]); return; } const t = setTimeout(() => api.search(q).then(r => { setResults(r.users); setPostHits(r.posts || []); }).catch(() => {}), 250); return () => clearTimeout(t); }, [q]);
   const loadMore = useCallback(async (kind: 'feed' | 'explore') => {
@@ -136,8 +154,8 @@ export function App() {
   const cls = 'ig' + (dark ? ' dark' : '');
   if (!ready) return <div className={cls}><div className="loading"><span className="spinner" /></div></div>;
   if (!me) return <div className={cls}>{entry === 'landing' ? <Landing onStart={setEntry} /> : <Auth key={entry} initial={entry} onBack={() => setEntry('landing')} onAuth={u => { setMe(u); setTab('home'); }} />}</div>;
-  const nav: [Tab, string][] = [['home', I.home], ['explore', I.search], ['create', I.plus], ['activity', I.bell], ['saved', I.bookmark], ['profile', I.user]];
-  const badge = (t: Tab) => t === 'activity' && unread > 0 ? <i className="badge">{unread > 9 ? '9+' : unread}</i> : null;
+  const nav: [Tab, string][] = [['home', I.home], ['explore', I.search], ['create', I.plus], ['messages', I.send], ['activity', I.bell], ['saved', I.bookmark], ['profile', I.user]];
+  const badge = (t: Tab) => { const n = t === 'activity' ? unread : t === 'messages' ? dmUnread : 0; return n > 0 ? <i className="badge">{n > 9 ? '9+' : n}</i> : null; };
   const go = (t: Tab) => { if (t === 'profile') loadProfile(me.handle); else setTab(t); };
   const card = (p: Post) => <PostCard key={p.id} post={p} me={me} onChange={upd} onOpen={() => setOpen(p)} onUser={loadProfile} onDelete={del} />;
   return <div className={cls}>
@@ -157,6 +175,7 @@ export function App() {
           {postHits.length > 0 && <><h3 className="hits">Posts</h3><Grid posts={postHits} onOpen={setOpen} /></>}
           {!results.length && !postHits.length && <p className="empty">Nothing found for "{q}".</p>}</> : <><Grid posts={explore} onOpen={setOpen} /><More on={!!exploreNext} busy={more} onVisible={() => loadMore('explore')} /></>}</div>}
       {tab === 'create' && <Create done={() => { say('Posted'); loadProfile(me.handle); }} />}
+      {tab === 'messages' && <Messages me={me} to={dmTo} setTo={setDmTo} onUser={loadProfile} onRead={() => api.conversations().then(r => setDmUnread(r.unread)).catch(() => {})} />}
       {tab === 'activity' && <div className="wide"><h2>Activity</h2>{notifs.length === 0 && <p className="empty">Likes, comments and new followers will show up here.</p>}
         {notifs.map((n, i) => <div key={n.id} className={'notif' + (n.seen ? '' : ' new')} style={{ animationDelay: Math.min(i, 10) * 40 + 'ms' }}>
           <button onClick={() => loadProfile(n.user.handle)}><Avatar handle={n.user.handle} name={n.user.name} size={44} src={n.user.avatar} /></button>
@@ -165,6 +184,7 @@ export function App() {
       {tab === 'saved' && <div className="wide"><h2>Saved</h2><Grid posts={saved} onOpen={setOpen} /></div>}
       {tab === 'profile' && prof && <div className="wide"><div className="prof"><Avatar handle={prof.user.handle} name={prof.user.name} size={96} story src={prof.user.avatar} /><div><h2>{prof.user.handle}
         {prof.user.id === me.id && <button className="ghost" onClick={() => setEditing(true)}>Edit profile</button>}
+        {prof.user.id !== me.id && <button className="ghost" onClick={() => { setDmTo(prof.user.handle); setTab('messages'); }}>Message</button>}
         {prof.user.id !== me.id && <button className={prof.user.followedByMe ? 'ghost' : 'primary sm'} onClick={() => follow(prof.user)}>{prof.user.followedByMe ? 'Following' : 'Follow'}</button>}</h2>
         <div className="stats"><span><b>{prof.user.posts}</b> posts</span><span><b>{prof.user.followers}</b> followers</span><span><b>{prof.user.following}</b> following</span></div><p><b>{prof.user.name}</b><br />{prof.user.bio}</p></div></div><Grid posts={prof.posts} onOpen={setOpen} /></div>}
     </main>
