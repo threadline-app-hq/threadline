@@ -276,4 +276,8 @@ html,body{background:#f6f3ed}
 .post header>div{min-width:0;flex:1}.post-author{max-width:100%;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:600;min-height:36px}.post header>.ago{flex:none}.post header>button{flex:none}.post header .out{margin-left:4px}.post header{gap:10px}
 /* In comments, leave room for the words and composer as well as the photograph. */
 .modal .media:not(.awaiting){display:flex;align-items:center;justify-content:center}.modal .media img{max-height:48dvh;width:100%;height:auto;object-fit:contain}.modal .media.awaiting{min-height:200px;max-height:48dvh}.modal .post header{padding-left:14px}.modal .actions,.modal .meta{padding-inline:16px}.modal .comment{margin-inline:16px}.modal .post{padding-bottom:12px}
-@media(max-width:700px){.modal .media img{max-height:42dvh}.modal .post header{gap:6px}.post-author{font-size:12px}.modal .actions{padding-top:8px}.modal .meta{line-height:1.7}.modal .comment{min-height:46px}}
+@media(max-width:700px){.modal .media img{max-height:32dvh}.modal .post header{gap:6px}.post-author{font-size:12px}.modal .actions{padding-top:8px}.modal .meta{line-height:1.7}.modal .comment{min-height:46px}}
+
+/* Long discussions scroll without losing their close control. */
+.modal-tools{position:sticky;top:0;height:56px;z-index:3;background:var(--surface);border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 16px;font-size:12px;color:var(--mut)}.modal-tools .x{top:12px}.modal .meta p{overflow-wrap:anywhere;white-space:pre-wrap}.modal .comment{position:sticky;bottom:0;background:var(--surface);padding-bottom:12px;z-index:2}
+@media(max-width:700px){.comment input{font-size:16px}.modal .comment{padding-bottom:calc(12px + env(safe-area-inset-bottom))}}
