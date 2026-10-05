@@ -1,7 +1,7 @@
-export type Mini = { id: number; handle: string; name: string };
+export type Mini = { id: number; handle: string; name: string; avatar?: string | null };
 export type Comment = { id: number; text: string; handle: string; created: number };
 export type Post = { id: number; image: string; caption: string; created: number; user: Mini; likes: number; liked: boolean; saved: boolean; commentCount: number; comments: Comment[] };
-export type User = { id: number; handle: string; name: string; bio: string; followers: number; following: number; posts: number; followedByMe: boolean };
+export type User = { avatar?: string | null; id: number; handle: string; name: string; bio: string; followers: number; following: number; posts: number; followedByMe: boolean };
 
 const BASE = ((import.meta as any).env?.VITE_API_BASE as string | undefined) ?? '';
 let token = localStorage.getItem('tl_token') || '';
@@ -33,10 +33,10 @@ export const api = {
   comments: (id: number) => call<{ comments: Comment[] }>('GET', `/api/posts/${id}/comments`),
   comment: (id: number, text: string) => call<Post>('POST', `/api/posts/${id}/comments`, { text }),
   createPost: (image: string, caption: string) => call<Post>('POST', '/api/posts', { image, caption }),
-  updateMe: (name: string, bio: string) => call<User>('PATCH', '/api/me', { name, bio }),
+  updateMe: (name: string, bio: string, avatar?: string) => call<User>('PATCH', '/api/me', { name, bio, ...(avatar ? { avatar } : {}) }),
   notifications: () => call<{ items: Notif[]; unread: number }>('GET', '/api/notifications'),
   readNotifications: () => call<null>('POST', '/api/notifications/read'),
   deletePost: (id: number) => call<null>('DELETE', `/api/posts/${id}`),
 };
 
-export type Notif = { id: number; type: 'like' | 'comment' | 'follow'; postId: number | null; text: string; created: number; seen: boolean; user: { handle: string; name: string }; image: string | null };
+export type Notif = { id: number; type: 'like' | 'comment' | 'follow'; postId: number | null; text: string; created: number; seen: boolean; user: { handle: string; name: string; avatar?: string | null }; image: string | null };
