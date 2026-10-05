@@ -33,5 +33,9 @@ export const api = {
   comments: (id: number) => call<{ comments: Comment[] }>('GET', `/api/posts/${id}/comments`),
   comment: (id: number, text: string) => call<Post>('POST', `/api/posts/${id}/comments`, { text }),
   createPost: (image: string, caption: string) => call<Post>('POST', '/api/posts', { image, caption }),
+  notifications: () => call<{ items: Notif[]; unread: number }>('GET', '/api/notifications'),
+  readNotifications: () => call<null>('POST', '/api/notifications/read'),
   deletePost: (id: number) => call<null>('DELETE', `/api/posts/${id}`),
 };
+
+export type Notif = { id: number; type: 'like' | 'comment' | 'follow'; postId: number | null; text: string; created: number; seen: boolean; user: { handle: string; name: string }; image: string | null };
