@@ -79,8 +79,8 @@ const verify = tok => {
 
 // ---- rate limit (per IP, in memory)
 const hits = new Map();
-const limited = (ip, key, max, windowMs) => { const k = key + ip, now = Date.now(); const a = (hits.get(k) || []).filter(t => now - t < windowMs); a.push(now); hits.set(k, a); return a.length > max; };
-setInterval(() => hits.clear(), 3600e3).unref();
+const limited = (ip, key, max, windowMs) => { const k = key + ip, now = Date.now(); const a=(hits.get(k)||[]).filter(t=>now-t<windowMs);if(a.length>=max){hits.set(k,a);return true;}a.push(now);hits.set(k,a);return false; };
+setInterval(()=>{const now=Date.now();for(const[k,a]of hits){const recent=a.filter(t=>now-t<3600e3);if(recent.length)hits.set(k,recent);else hits.delete(k);}},60000).unref();
 
 class HttpError extends Error { constructor(status, msg) { super(msg); this.status = status; } }
 const bad = (s, m) => { throw new HttpError(s, m); };
@@ -171,7 +171,7 @@ route('PATCH', '/api/me', true, async ({ me, body }) => {
     const buf = Buffer.from(m[1], 'base64'); if (!buf.length || buf.length > 1024 * 1024) bad(413, 'Avatar must be under 1 MB');
     const ext = sniff(buf) || bad(400, 'Unsupported or corrupt image'); avatarKey = await saveImage(buf, ext);
   }
-  if(avatarKey){const old=await one('SELECT avatar FROM users WHERE id=$1',me);await run('UPDATE users SET avatar=$1 WHERE id=$2',avatarKey,me);if(old?.avatar)await dropImage(old.avatar);}
+  if(avatarKey||body.removeAvatar===true){const old=await one('SELECT avatar FROM users WHERE id=$1',me);await run('UPDATE users SET avatar=$1 WHERE id=$2',avatarKey,me);if(old?.avatar)await dropImage(old.avatar);}
   await run('UPDATE users SET name=COALESCE($1,name), bio=COALESCE($2,bio) WHERE id=$3', body.name ? String(body.name).slice(0, 60) : null, body.bio != null ? String(body.bio).slice(0, 200) : null, me);
   return { data: await publicUser(await one('SELECT * FROM users WHERE id=$1', me), me) };
 });
@@ -243,6 +243,7 @@ route('POST', '/api/stories', true, async ({ me, body, ip }) => {
   const r = await one('INSERT INTO stories(user_id,image,created) VALUES($1,$2,$3) RETURNING id', me, key, Date.now());
   return { status: 201, data: { id: r.id } };
 });
+route('DELETE','/api/stories/:id',true,async({me,params})=>{if(!/^\d{1,9}$/.test(params.id))bad(404,'Story not found');const story=await one('SELECT id,user_id,image FROM stories WHERE id=$1',Number(params.id));if(!story)bad(404,'Story not found');if(story.user_id!==me)bad(403,'Not your story');await run('DELETE FROM stories WHERE id=$1',story.id);await dropImage(story.image);return{status:204};});
 route('GET', '/api/messages', true, async ({ me }) => {
   const rows = await q('SELECT m.id,m.sender,m.recipient,m.text,m.created,m.seen FROM messages m WHERE m.sender=$1 OR m.recipient=$1 ORDER BY m.id DESC LIMIT 400', me);
   const seen = new Map(); for (const r of rows) { const other = r.sender === me ? r.recipient : r.sender; if (!seen.has(other)) seen.set(other, { last: r, unread: 0 }); if (r.recipient === me && !r.seen) seen.get(other).unread++; }
@@ -300,6 +301,7 @@ export const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && !url.pathname.startsWith('/api/') && fs.existsSync(PUBLIC)) {
       let f = path.join(PUBLIC, path.normalize(decodeURIComponent(url.pathname)).replace(/^(\.\.[\/\\])+/, ''));
       if (!f.startsWith(PUBLIC) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) f = path.join(PUBLIC, 'index.html');
+      if(f===path.join(PUBLIC,'index.html')&&/\.[a-zA-Z0-9]{1,10}$/.test(url.pathname)&&url.pathname!=='/index.html')return send(404,{error:'Not found'});
       const ext = path.extname(f);
       if (['.html','.js','.css','.svg','.json','.webmanifest'].includes(ext)&&/\bgzip\b/.test(req.headers['accept-encoding']||'')) { const stream=zlib.createGzip();res.writeHead(200,{...headers,'content-type':STATIC_MIME[ext]||'application/octet-stream','cache-control':'no-cache','content-encoding':'gzip',vary:'accept-encoding'});fs.createReadStream(f).pipe(stream).pipe(res);return; }
       res.writeHead(200,{...headers,'content-type':STATIC_MIME[ext]||'application/octet-stream','cache-control':'no-cache'});return fs.createReadStream(f).pipe(res);

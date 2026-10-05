@@ -4,11 +4,13 @@ export type Post = { id: number; image: string; caption: string; created: number
 export type User = { avatar?: string | null; id: number; handle: string; name: string; bio: string; followers: number; following: number; posts: number; followedByMe: boolean };
 
 const BASE = ((import.meta as any).env?.VITE_API_BASE as string | undefined) ?? '';
-let token = localStorage.getItem('tl_token') || '';
+export const readStored=(key:string)=>{try{return localStorage.getItem(key)||'';}catch{return '';}};
+export const writeStored=(key:string,value:string)=>{try{value?localStorage.setItem(key,value):localStorage.removeItem(key);return true;}catch{return false;}};
+let token=readStored('tl_token');
 let onAuthLost: () => void = () => {};
 export const setOnAuthLost = (f: () => void) => { onAuthLost = f; };
 export const hasToken = () => !!token;
-export const setToken = (t: string) => { token = t; t ? localStorage.setItem('tl_token', t) : localStorage.removeItem('tl_token'); };
+export const setToken = (t: string) => { token=t;return writeStored('tl_token',t); };
 export const img = (p: string) => (p.startsWith('http') ? p : BASE + p);
 
 async function call<T>(method: string, url: string, body?: unknown): Promise<T> {
@@ -39,8 +41,9 @@ export const api = {
   comments: (id: number) => call<{ comments: Comment[] }>('GET', `/api/posts/${id}/comments`),
   comment: (id: number, text: string) => call<Post>('POST', `/api/posts/${id}/comments`, { text }),
   createPost: (image: string, caption: string) => call<Post>('POST', '/api/posts', { image, caption }),
-  updateMe: (name: string, bio: string, avatar?: string) => call<User>('PATCH', '/api/me', { name, bio, ...(avatar ? { avatar } : {}) }),
+  updateMe:(name:string,bio:string,avatar?:string,removeAvatar=false) => call<User>('PATCH', '/api/me', {name,bio,...(avatar?{avatar}:{}),...(removeAvatar?{removeAvatar:true}:{})}),
   stories: () => call<{ groups: StoryGroup[] }>('GET', '/api/stories'),
+  deleteStory:(id:number)=>call<null>('DELETE',`/api/stories/${id}`),
   addStory: (image: string) => call<{ id: number }>('POST', '/api/stories', { image }),
   conversations: () => call<{ conversations: Convo[]; unread: number }>('GET', '/api/messages'),
   thread: (h: string) => call<{ user: Mini; messages: Msg[] }>('GET', '/api/messages/' + encodeURIComponent(h)),
