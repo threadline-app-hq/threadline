@@ -12,7 +12,7 @@ await p.getByRole('button',{name:'Sign up',exact:true}).click();
 await p.getByRole('button',{name:'I saved it, continue'}).click();
 await p.getByRole('button',{name:'profile',exact:true}).click();
 await p.getByRole('button',{name:'Edit profile',exact:true}).click();
-await p.locator('.avpick input').setInputFiles('seed/p1.jpg');
+await p.locator('.editm input[type=file]').setInputFiles('seed/p1.jpg');
 await p.getByRole('button',{name:'Save',exact:true}).click();
 await p.getByRole('dialog').waitFor({state:'hidden'});
 await p.waitForFunction(()=>document.querySelector('.prof .av')?.getAttribute('style')?.includes('url('));

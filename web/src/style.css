@@ -337,3 +337,5 @@ html,body{background:#f6f3ed}
 .search-empty{overflow-wrap:anywhere}
 /* Preserve the paragraph breaks chosen in captions and comments in the feed too. */
 .post .meta p{white-space:pre-wrap}
+/* The dialog contains a real form and a native photo-picker button. */
+.edit-dialog{max-width:420px;padding:0}.editm .avpick{display:flex;text-align:left;font-size:13px;font-weight:600;padding:0}.editm>input[hidden]{display:none}
