@@ -249,7 +249,7 @@ route('GET', '/api/messages', true, async ({ me }) => {
   const seen = new Map(); for (const r of rows) { const other = r.sender === me ? r.recipient : r.sender; if (!seen.has(other)) seen.set(other, { last: r, unread: 0 }); if (r.recipient === me && !r.seen) seen.get(other).unread++; }
   const out = [];
   for (const [id, v] of seen) { const u = await one('SELECT id,handle,name,avatar FROM users WHERE id=$1', id); if (u) out.push({ user: { id: u.id, handle: u.handle, name: u.name, avatar: u.avatar ? '/uploads/' + u.avatar : null }, text: v.last.text, created: v.last.created, mine: v.last.sender === me, unread: v.unread }); }
-  return { data: { conversations: out, unread: out.reduce((a, c) => a + c.unread, 0) } };
+  return { data: { conversations: out, unread:await count('SELECT COUNT(*) c FROM messages WHERE recipient=$1 AND NOT seen',me) } };
 });
 route('GET', '/api/messages/:handle', true, async ({ me, params }) => {
   const u = await userByHandle(params.handle);
