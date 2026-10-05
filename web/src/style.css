@@ -265,3 +265,9 @@ html,body{background:#f6f3ed}
 /* The editor is a tool, not a second landing page. */
 .create .section-heading{margin-bottom:0}.create .section-heading h2{margin:0 0 10px}.create .section-heading>p{margin:0}.ig .create .drop{aspect-ratio:auto;min-height:220px;height:220px}.ig .create .drop.has{height:auto;min-height:0;background:var(--soft)}.create .drop.has img{width:100%;height:auto;max-height:360px;object-fit:contain}.quiet-start{border-top:1px solid var(--line);padding:28px 0;max-width:420px}.quiet-start h3{font-size:18px;font-weight:500;margin:0 0 12px}.quiet-start p{font-size:14px;line-height:1.8;color:var(--mut);margin:0 0 22px;max-width:350px}.quiet-start .ghost{min-height:44px;padding:10px 16px;border:1px solid var(--line)}
 @media(max-width:700px){.create .drop.has img{max-height:260px}.create textarea{min-height:88px}.create{gap:12px}.create .section-heading h2{font-size:34px}.quiet-start{padding-top:24px}}
+
+/* Form hints are readable in both themes, including native textarea placeholders. */
+.ig input::placeholder,.ig textarea::placeholder{color:var(--mut);opacity:1}
+/* Story tools stay on a dark strip, rather than depending on the photograph. */
+.sv-card{border-radius:4px}.sv-h{left:0;right:0;top:18px;gap:8px;padding:0 10px 8px;background:#000;text-shadow:none}.sv-h>.av{flex:none}.sv-identity{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px}.sv-identity b{display:block;max-width:none;font-size:12px}.sv-identity small{color:#c8c8c8;opacity:1;font-size:10px;margin:0;white-space:nowrap}.sv-h button{width:44px;height:44px;border-radius:3px;background:#171717}.sv-h button:focus-visible{outline:2px solid #fff;outline-offset:1px}.sv-h button:hover{background:#303030}.sv-delete{border-radius:4px}.sv-loading{font-size:14px;line-height:1.6}.sv-gesture{top:78px}
+@media(max-width:700px){.sv-card{border-radius:0}.sv-h{top:calc(18px + env(safe-area-inset-top))}.sv-gesture{top:calc(78px + env(safe-area-inset-top))}}
