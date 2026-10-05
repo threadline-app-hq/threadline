@@ -312,3 +312,6 @@ html,body{background:#f6f3ed}
 /* The opening photograph is a page, not a wall-sized poster. */
 @media(min-width:1001px){.notebook-photo{max-width:620px}}
 @media(min-width:701px) and (max-width:1000px){.notebook-intro{grid-template-columns:1fr;gap:0;padding-top:52px}.notebook h1{font-size:72px}.notebook-deck{margin:24px 0 0;max-width:460px}.notebook-deck p{margin-bottom:22px}.notebook-photo{width:76%;margin-left:auto}.notebook-photo>img{height:auto;object-fit:contain}}
+
+/* The caption stays identified after its placeholder disappears. */
+.caption-field{display:flex;flex-direction:column;gap:8px}.caption-field>span{display:flex;justify-content:space-between;font-size:12px;font-weight:600}.caption-field small{font-size:11px;color:var(--mut);font-weight:400}.create .caption-field textarea{width:100%;font-size:16px;line-height:1.6;min-height:88px;padding:12px 14px}
