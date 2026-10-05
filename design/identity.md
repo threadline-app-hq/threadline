@@ -1,6 +1,6 @@
 # Threadline: field notes, not a template
 
-Working direction, Oct5. Original owner: the live screenshots still look AI-made; one week to improve them. This document is a design hypothesis, not permission or completion.
+Working direction, Oct5. Design goal: move beyond a generic social-app template. This document records a working design hypothesis, not a completion claim.
 
 ## Critique of current screenshots
 - Rounded white panels, violet buttons, gradient initials and seven undifferentiated icons read like a starter social app.
