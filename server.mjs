@@ -185,7 +185,7 @@ export const server = http.createServer(async (req, res) => {
       let f = path.join(PUBLIC, path.normalize(decodeURIComponent(url.pathname)).replace(/^(\.\.[\/\\])+/, ''));
       if (!f.startsWith(PUBLIC) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) f = path.join(PUBLIC, 'index.html');
       const ext = path.extname(f);
-      res.writeHead(200, { ...headers, 'content-type': STATIC_MIME[ext] || 'application/octet-stream', 'cache-control': f.includes('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache' });
+      res.writeHead(200, { ...headers, 'content-type': STATIC_MIME[ext] || 'application/octet-stream', 'cache-control': 'no-cache' });
       return fs.createReadStream(f).pipe(res);
     }
     for (const r of routes) {
