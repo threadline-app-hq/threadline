@@ -340,3 +340,5 @@ html,body{background:#f6f3ed}
 /* The dialog contains a real form and a native photo-picker button. */
 .edit-dialog{max-width:420px;padding:0}.editm .avpick{display:flex;text-align:left;font-size:13px;font-weight:600;padding:0}.editm>input[hidden]{display:none}
 .story-picker{display:flex;flex-direction:column;align-items:center;gap:4px;padding:0;width:100%}
+/* Give touch users a full finger-sized hit area without inflating mouse layouts. */
+@media(pointer:coarse){.ig button{min-width:44px;min-height:44px}.authcard .back,.authcard .password-toggle,.swap button,.prof h2 button,.comment button{min-height:44px}.sv-h button,.sv-access{width:44px;height:44px}.modal-tools{height:64px}.modal-tools .x{top:10px}}

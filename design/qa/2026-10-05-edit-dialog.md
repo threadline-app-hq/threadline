@@ -32,3 +32,11 @@ Unrestricted populated scan found the two desktop complementary landmarks were u
 ## Overlay states, 10:14 PDT
 
 New default spec overlay-unrestricted: startup boot error screen and story viewer (paused, delete confirmation) pass the full unrestricted axe rule set. Keyboard-only traversal reaches story viewer header tools by Tab, pause works, Escape closes and focus handling stays intact. Boot-error and story-confirm pixels captured. Local-only test change; production remains c17d8dd.
+
+## Coarse pointer and keyboard-sized viewports, 10:31 PDT
+
+Found auth password visibility control at 85x36, below our 44px touch baseline. Added a coarse-pointer-only 44px minimum for app buttons plus auth text controls and profile/comment controls; story controls keep a 44px square and modal toolbar grows to leave the close control room. Fine-pointer layouts are unchanged.
+
+New default coarse-pointer spec runs Chromium and WebKit touch contexts. Auth back/password/login, profile editor controls and conversation back meet 44px. Resizing a focused editor and message draft to 390x360, then 520 and 844 high, preserves text; Save/Send remain visible and Send stays above bottom navigation. WebKit editor and message screenshots inspected: readable draft, fully visible action controls, no overlapping navigation. This simulates keyboard-sized layout resizing, not a real iOS keyboard or physical-device safe-area test. Existing safe-area env() offsets remain in the top, bottom navigation, dialogs, stories and messaging height.
+
+Seven related viewport/touch/overlay tests plus touch, standalone simulation, auth locking and password toggles pass. Unrestricted 13-state and 24-state axe scans remain clean; typecheck passes. Local-only batch, no publish yet.
