@@ -334,3 +334,4 @@ html,body{background:#f6f3ed}
 @media(max-width:480px){.notif{gap:10px;padding:16px 8px}.notif .notification-meta{display:block}.notif .notification-meta small{display:block;margin-top:3px}.notif .notif-photo{min-width:40px;min-height:50px}.notif .notif-photo img{width:40px;height:50px}}
 .search-person small{white-space:normal;overflow:visible;text-overflow:clip}
 .search-person .search-followers{font-size:11px;margin-top:5px}
+.search-empty{overflow-wrap:anywhere}
