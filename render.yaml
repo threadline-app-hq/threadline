@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: threadline
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: SEED
+        value: "1"
+      - key: PGHOST
+        value: aws-0-us-west-2.pooler.supabase.com
+      - key: PGPORT
+        value: "5432"
+      - key: PGUSER
+        value: postgres.pylteqjrerwlrbtoxtmw
+      - key: PGDATABASE
+        value: postgres
+      - key: PGPASSWORD
+        sync: false
