@@ -156,3 +156,5 @@ html,body{overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent;-we
 .sv-bars{position:absolute;top:10px;left:10px;right:10px;display:flex;gap:4px;z-index:3}.sv-bars span{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.3);overflow:hidden}.sv-bars b{display:block;height:100%;background:#fff;width:0}.sv-bars b.done{width:100%}.sv-bars b.run{animation:fill linear forwards}@keyframes fill{to{width:100%}}
 .sv-h{position:absolute;top:22px;left:12px;right:12px;display:flex;align-items:center;gap:10px;color:#fff;z-index:3;text-shadow:0 1px 6px rgba(0,0,0,.6)}.sv-h small{opacity:.8}.sv-h button{margin-left:auto;color:#fff}
 .sv-l,.sv-r{position:absolute;top:60px;bottom:0;width:40%;z-index:2}.sv-l{left:0}.sv-r{right:0}
+
+.rcode{font:700 24px/1.2 ui-monospace,Menlo,monospace;letter-spacing:.12em;text-align:center;padding:18px 10px;border:2px dashed var(--bd,#dbdbdb);border-radius:14px;user-select:all;margin:6px 0}
