@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { api, hasToken, setToken, readStored, writeStored, setOnAuthLost, img, Post, User, Comment, Notif, Convo, Msg, Mini, StoryGroup } from './api';
 import { Landing } from './Landing';
 import './style.css';
+function BrandMark(){return <svg className="brand-mark" aria-hidden="true" viewBox="0 0 24 28" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M8 2H3v24h5M16 2h5v24h-5M9 8l6 4-6 4 6 4"/></svg>}
 
 type Tab = 'home' | 'explore' | 'create' | 'messages' | 'activity' | 'saved' | 'profile';
 const Ic = ({ d, fill, size = 24 }: { d: string; fill?: boolean; size?: number }) =>
@@ -16,13 +17,13 @@ const I = {
   trash: 'M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6',
 };
 const hue = (s: string) => [...s].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 360, 7);
-const ring = (h: number) => `conic-gradient(from 200deg, hsl(${h} 90% 60%), hsl(${h + 60} 90% 58%), hsl(${h + 120} 90% 60%), hsl(${h} 90% 60%))`;
+const ring = (_h: number) => 'var(--blue)';
 const ago = (t: number) => { const s = Math.max(1, (Date.now() - t) / 1000); return s < 60 ? 'now' : s < 3600 ? Math.floor(s / 60) + 'm' : s < 86400 ? Math.floor(s / 3600) + 'h' : Math.floor(s / 86400) + 'd'; };
 
 function Avatar({ handle, name, size = 40, story, src }: { handle: string; name?: string; size?: number; story?: boolean; src?: string | null }) {
   const h=hue(handle);const[failed,setFailed]=useState(false);useEffect(()=>setFailed(false),[src]);const photo=!!src&&!failed;
   return <span className="av-wrap" style={{ width: size + (story ? 8 : 0), height: size + (story ? 8 : 0), background: story ? ring(h) : 'transparent' }}>
-    <span className="av" style={{ width: size, height: size, fontSize: size * 0.4, background:photo?`center/cover url(${img(src!)})`: `linear-gradient(135deg, hsl(${h} 70% 62%), hsl(${h + 50} 70% 48%))` }}>{photo?<img src={img(src!)} alt="" onError={()=>setFailed(true)}/>:((name||handle)[0]||'?').toUpperCase()}</span></span>;
+    <span className="av" style={{ width: size, height: size, fontSize: size * 0.4, background:photo?`center/cover url(${img(src!)})`: 'var(--soft)' }}>{photo?<img src={img(src!)} alt="" onError={()=>setFailed(true)}/>:((name||handle)[0]||'?').toUpperCase()}</span></span>;
 }
 
 async function toDataUrl(file:File,maxSide=1440):Promise<string>{
@@ -44,7 +45,7 @@ function Auth({ onAuth, initial = 'login', onBack }: { onAuth: (u: User) => void
     <button type="button" className="ghost" onClick={async e => {const button=e.currentTarget;try { await navigator.clipboard.writeText(shown.code); button.textContent='Copied'; } catch { setErr('Copy is unavailable. Select and save the code manually.'); } }}>Copy code</button>
     <p className="mut tiny">Keep this private, just like your password.</p>{err && <p className="err" role="alert">{err}</p>}<button className="primary" onClick={() => onAuth(shown.user)}>I saved it, continue</button></div></div>;
   return <div className="authwrap"><form className="authcard" onSubmit={submit}>
-    {onBack && <button type="button" className="back" disabled={busy} onClick={onBack}>← Back</button>}<h1 className="logo">Threadline <span className="v2">2.0</span></h1><p className="tag">Your people. Your perspective.</p>
+    {onBack && <button type="button" className="back" disabled={busy} onClick={onBack}>← Back</button>}<h1 className="logo"><BrandMark />Threadline</h1><p className="tag">Your people. Your perspective.</p>
     <input aria-label="Username" placeholder="Username" value={handle} onChange={e => setHandle(e.target.value)} autoCapitalize="none" autoComplete="username" required />
     {mode === 'signup' && <input aria-label="Full name" placeholder="Full name" value={name} onChange={e => setName(e.target.value)} autoComplete="name" />}
     {mode === 'reset' && <input aria-label="Recovery code" placeholder="Recovery code (XXXX-XXXX-XXXX)" value={code} onChange={e => setCode(e.target.value)} autoCapitalize="characters" autoComplete="off" required />}
@@ -99,7 +100,7 @@ function Modal({ post, me, onChange, onClose, onUser, onDelete }: { post: Post; 
 
 function GridImage({src}:{src:string}){const[failed,setFailed]=useState(false);useEffect(()=>setFailed(false),[src]);return failed?<span className="grid-failed"><Ic d={I.comment} size={22}/><small>Photo unavailable</small></span>:<img src={img(src)} alt="" loading="lazy" onError={()=>setFailed(true)}/>;}
 const Grid = ({ posts, onOpen }: { posts: Post[]; onOpen: (p: Post) => void }) => !posts.length ? <p className="empty">Nothing here yet.</p> :
-  <div className="grid">{posts.map(p => <button aria-label={"Open photo by " + p.user.handle + (p.caption ? ": " + p.caption : "")} key={p.id} onClick={() => onOpen(p)}><GridImage src={p.image}/>
+  <div className={"grid"+(posts.length===1?" single":"")}>{posts.map(p => <button aria-label={"Open photo by " + p.user.handle + (p.caption ? ": " + p.caption : "")} key={p.id} onClick={() => onOpen(p)}><GridImage src={p.image}/>
     <span className="hover"><Ic d={I.heart} fill size={18} /> {p.likes} <Ic d={I.comment} fill size={18} /> {p.commentCount}</span></button>)}</div>;
 
 function Create({ done }: { done: () => void }) {
@@ -172,7 +173,7 @@ export function App() {
   const [entry, setEntry] = useState<'landing' | 'login' | 'signup'>('landing'); const [feedNext, setFeedNext] = useState<number | null>(null); const [exploreNext, setExploreNext] = useState<number | null>(null); const [more, setMore] = useState(false);const [moreErr,setMoreErr]=useState('');const moreLock=useRef(false); const [groups,setGroups]=useState<StoryGroup[]>([]);const[storiesErr,setStoriesErr]=useState(''); const [viewer, setViewer] = useState<number | null>(null); const [storyBusy,setStoryBusy]=useState(false);const [dmTo, setDmTo] = useState<string | null>(null); const [dmUnread, setDmUnread] = useState(0); const[profileMore,setProfileMore]=useState(false);const[profileMoreErr,setProfileMoreErr]=useState('');const profileMoreLock=useRef(false);const [editing, setEditing] = useState(false); const [notifs, setNotifs] = useState<Notif[]>([]); const [unread, setUnread] = useState(0);const [activityLoading,setActivityLoading]=useState(true);const [activityErr,setActivityErr]=useState('');const [activityRetry,setActivityRetry]=useState(0); const [q, setQ] = useState('');const[searchRetry,setSearchRetry]=useState(0); const [results, setResults] = useState<User[]>([]); const [postHits, setPostHits] = useState<Post[]>([]); const [toast, setToast] = useState(''); const [loading, setLoading] = useState(false); const [refreshErr,setRefreshErr]=useState('');const refreshId=useRef(0);const storiesId=useRef(0);const profileId=useRef(0);const [searching,setSearching]=useState(false);const [searchErr,setSearchErr]=useState('');const [following,setFollowing]=useState<number[]>([]);const followLocks=useRef(new Set<number>());
   const toastTimer=useRef<ReturnType<typeof setTimeout>>();const say=(m:string)=>{clearTimeout(toastTimer.current);setToast(m);toastTimer.current=setTimeout(()=>setToast(''),2600);};useEffect(()=>()=>clearTimeout(toastTimer.current),[]);
   useEffect(() => { let active=true;setOnAuthLost(()=>{refreshId.current++;storiesId.current++;profileId.current++;setMe(null);setFeed([]);setExplore([]);setSaved([]);setProf(null);setGroups([]);setNotifs([]);setOpen(null);setEditing(false);setViewer(null);setDmTo(null);setQ('');setResults([]);setPostHits([]);setUnread(0);setDmUnread(0);setTab('home');setEntry('login');}); if(hasToken()){setReady(false);setBootErr('');api.me().then(u=>{if(active)setMe(u);}).catch(e=>{if(active&&hasToken())setBootErr(e.message);}).finally(()=>{if(active)setReady(true);});}return()=>{active=false;};},[bootRetry]);
-  useEffect(()=>{writeStored('tl_dark',dark?'1':'0');document.querySelector('meta[name=theme-color]')?.setAttribute('content',dark?'#101116':'#f7f8fb');document.documentElement.style.colorScheme=dark?'dark':'light';},[dark]);
+  useEffect(()=>{writeStored('tl_dark',dark?'1':'0');document.querySelector('meta[name=theme-color]')?.setAttribute('content',dark?'#1b1b18':'#f6f3ed');document.documentElement.style.colorScheme=dark?'dark':'light';},[dark]);
   const loadProfile=useCallback(async(h:string)=>{const id=++profileId.current;try{const p=await api.profile(h);if(id===profileId.current){setProf(p);setProfileMoreErr('');setTab('profile');window.scrollTo({top:0,behavior:'instant' as ScrollBehavior});}}catch(e:any){if(id===profileId.current)say(e.message);}},[]);
   const refresh = useCallback(async () => {
     if(!me)return;const id=++refreshId.current;setLoading(true);setRefreshErr('');setMoreErr('');
@@ -202,11 +203,11 @@ export function App() {
   const go = (t: Tab) => { profileId.current++;setOpen(null); setEditing(false); if (t === 'profile') loadProfile(me.handle); else setTab(t); window.scrollTo({top:0,behavior:'instant' as ScrollBehavior}); };
   const card = (p: Post) => <PostCard key={p.id} post={p} me={me} onChange={upd} onOpen={() => setOpen(p)} onUser={loadProfile} onDelete={del} />;
   return <div className={cls}>
-    <a className="skip-link" href="#main-content">Skip to content</a><aside className="side"><h1 className="logo">Threadline <span className="v2">2.0</span></h1>
+    <a className="skip-link" href="#main-content">Skip to content</a><aside className="side"><h1 className="logo"><BrandMark />Threadline</h1>
       {nav.map(([t, d]) => <button key={t} aria-label={t[0].toUpperCase()+t.slice(1)} aria-current={tab===t?'page':undefined} className={tab === t ? 'on' : ''} onClick={() => go(t)}><Ic d={d} fill={tab === t && t !== 'create'} />{badge(t)}<span>{t[0].toUpperCase() + t.slice(1)}</span></button>)}
       <button className="push" aria-label={dark?'Light mode':'Dark mode'} onClick={()=>setDark(!dark)}><Ic d={I.moon} /><span>{dark ? 'Light' : 'Dark'} mode</span></button>
       <button aria-label="Log out" onClick={logout}><Ic d={I.close} /><span>Log out</span></button></aside>
-    <header className="top"><h1 className="logo">Threadline <span className="v2">2.0</span></h1><span><button onClick={() => setDark(!dark)} aria-label="Toggle dark mode"><Ic d={I.moon} /></button> <button onClick={logout} aria-label="Log out"><Ic d={I.close} /></button></span></header>
+    <header className="top"><h1 className="logo"><BrandMark />Threadline</h1><span><button onClick={() => setDark(!dark)} aria-label="Toggle dark mode"><Ic d={I.moon} /></button> <button onClick={logout} aria-label="Log out"><Ic d={I.close} /></button></span></header>
     <main key={tab} className="page" id="main-content" tabIndex={-1}>
       {refreshErr&&['home','explore','saved'].includes(tab)&&<div className="load-error" role="alert"><p>{refreshErr}</p><button className="ghost" onClick={refresh}>Try again</button></div>}
       {tab==='home'&&<div className="home"><section className="col"><div className="feed-heading"><span>Your people</span><button className="link" disabled={loading} onClick={()=>{refresh();loadStories();}}>{loading?'Refreshing…':'Refresh'}</button></div>{storiesErr&&<div className="stories-error" role="alert"><span>Stories could not load.</span><button className="link" onClick={loadStories}>Retry stories</button></div>}
@@ -229,7 +230,7 @@ export function App() {
           <div><b>{n.user.handle}</b> {n.type === 'like' ? 'liked your photo.' : n.type === 'comment' ? <>commented: <span className="mut">{n.text}</span></> : 'started following you.'} <small>{ago(n.created)}</small></div>
           {n.image&&n.postId&&<button className="notif-photo" aria-label="Open notification photo" onClick={async()=>{try{const id=refreshId.current;const post=await api.post(n.postId!);if(id===refreshId.current)setOpen(post);}catch(e:any){say(e.message);}}}><img src={img(n.image)} alt=""/></button>}</div>)}</div>}
       {tab === 'saved' && <div className="wide"><div className="section-heading"><p className="eyebrow">Your collection</p><h2>Saved moments</h2><p>Keep the things that stay with you.</p></div>{loading&&!saved.length?<p className="empty" role="status">Loading saved moments…</p>:(!refreshErr||saved.length>0)&&<Grid posts={saved} onOpen={setOpen}/>}</div>}
-      {tab === 'profile' && prof && <div className="wide"><div className="prof"><Avatar handle={prof.user.handle} name={prof.user.name} size={96} story src={prof.user.avatar} /><div><h2>{prof.user.handle}
+      {tab === 'profile' && prof && <div className="wide"><div className="prof"><Avatar handle={prof.user.handle} name={prof.user.name} size={96} src={prof.user.avatar} /><div><h2>{prof.user.handle}
         {prof.user.id === me.id && <button className="ghost" onClick={() => setEditing(true)}>Edit profile</button>}
         {prof.user.id !== me.id && <button className="ghost" onClick={() => { setDmTo(prof.user.handle); setTab('messages'); }}>Message</button>}
         {prof.user.id !== me.id && <button className={prof.user.followedByMe ? 'ghost' : 'primary sm'} disabled={following.includes(prof.user.id)} onClick={()=>follow(prof.user)}>{prof.user.followedByMe ? 'Following' : 'Follow'}</button>}</h2>
