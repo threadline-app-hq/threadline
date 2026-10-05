@@ -303,3 +303,8 @@ html,body{background:#f6f3ed}
 .dm-in{align-items:flex-end;flex-shrink:0}.dm-in textarea{flex:1;min-width:0;min-height:64px;max-height:140px;resize:vertical;background:var(--bg);color:inherit;border:1px solid var(--line);padding:11px 12px;font:16px/1.5 'Instrument Sans',sans-serif;overflow-wrap:anywhere}.dm-in textarea:disabled{opacity:.65}.dm-in textarea::placeholder{color:var(--mut);opacity:1}.dm-in button{min-height:44px}
 @media(max-height:560px){.dm-in textarea{min-height:48px;max-height:90px;padding-block:8px}.dm-in{padding-top:8px}}
 @media(max-height:560px) and (max-width:700px){.dm{min-height:0;height:calc(100dvh - 142px - env(safe-area-inset-top) - env(safe-area-inset-bottom));padding-block:8px}.dm-h{padding-bottom:6px}.dm-body{padding-block:8px}.dm-in textarea{height:48px;resize:none}.dm-in{padding-top:6px}}
+
+/* Reserve the photograph's shape without making a tall matte taller than its image. */
+.home .media.measured{min-height:0;max-height:min(78dvh,760px)}.modal .media.measured{min-height:0;max-height:48dvh}
+.home .media.measured,.modal .media.measured{width:100%}
+@media(max-width:700px){.modal .media.measured{max-height:32dvh}}
