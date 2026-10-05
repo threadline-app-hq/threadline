@@ -99,7 +99,7 @@ function Messages({ me, to, setTo, onUser, onRead }: { me: User; to: string | nu
   const loadList = () => api.conversations().then(r => setConvos(r.conversations)).catch(() => {});
   useEffect(() => { if (to) return; loadList(); const t = setInterval(loadList, 15000); return () => clearInterval(t); }, [to]);
   useEffect(() => { if (!to) { setThread(null); return; } let on = true; const pull = () => api.thread(to).then(r => { if (on) { setThread(r); onRead(); } }).catch(e => on && setErr(e.message)); pull(); const t = setInterval(pull, 4000); return () => { on = false; clearInterval(t); }; }, [to]);
-  useEffect(() => { end.current?.scrollIntoView({ behavior: 'smooth' }); }, [thread?.messages.length]);
+  useEffect(() => { { const p = end.current?.parentElement; if (p) p.scrollTo({ top: p.scrollHeight, behavior: 'smooth' }); } }, [thread?.messages.length]);
   const send = async (e: React.FormEvent) => { e.preventDefault(); const v = text.trim(); if (!v || !to) return; setText(''); setErr('');
     try { const m = await api.send(to, v); setThread(t => t && { ...t, messages: [...t.messages, m] }); } catch (x: any) { setErr(x.message); setText(v); } };
   if (to) return <div className="wide dm"><div className="dm-h"><button className="ghost" onClick={() => setTo(null)}>← Back</button>{thread && <button className="dm-u" onClick={() => onUser(thread.user.handle)}><Avatar handle={thread.user.handle} name={thread.user.name} size={36} src={thread.user.avatar} /><b>{thread.user.handle}</b></button>}</div>
