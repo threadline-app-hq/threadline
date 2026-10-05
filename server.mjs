@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import zlib from 'node:zlib';
 import {promisify} from 'node:util';
 import path from 'node:path';
+import {imageDims} from './image-metadata.mjs';
 const __dir = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dir, 'public');
 const STATIC_MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
@@ -127,18 +128,6 @@ const saveImage = async (buf, ext) => {
 const dropImage=async key=>{if(key.startsWith('s_')&&SB_URL&&SB_KEY){try{const r=await fetch(`${SB_URL}/storage/v1/object/${SB_BUCKET}/${key}`,{method:'DELETE',headers:{authorization:'Bearer '+SB_KEY},signal:AbortSignal.timeout(15000)});if(!r.ok)console.error('storage deletion failed',r.status);}catch(e){console.error('storage deletion error',e.message);}}else await run('DELETE FROM images WHERE key=$1',key);};
 
 
-const imageDims=(b,ext)=>{try{
-  if(ext==='png'){const w=b.readUInt32BE(16),h=b.readUInt32BE(20);if(w>0&&h>0)return{w,h};}
-  if(ext==='webp'){const tag=b.subarray(12,16).toString('latin1');
-    if(tag==='VP8 '){const w=b.readUInt16LE(26)&0x3fff,h=b.readUInt16LE(28)&0x3fff;if(w>0&&h>0)return{w,h};}
-    if(tag==='VP8L'){const w=1+(((b[22]&0x3f)<<8)|b[21]),h=1+(((b[24]&0xf)<<10)|(b[23]<<2)|((b[22]&0xc0)>>6));if(w>0&&h>0)return{w,h};}
-    if(tag==='VP8X'){const w=1+(b[24]|b[25]<<8|b[26]<<16),h=1+(b[27]|b[28]<<8|b[29]<<16);if(w>0&&h>0)return{w,h};}
-    return null;}
-  let i=2;while(i<b.length-9){if(b[i]!==0xff){i++;continue;}const m=b[i+1];
-    if(m>=0xc0&&m<=0xcf&&m!==0xc4&&m!==0xc8&&m!==0xcc){const h=b.readUInt16BE(i+5),w=b.readUInt16BE(i+7);if(w>0&&h>0)return{w,h};return null;}
-    if(m===0xd8||m===0x01){i+=2;continue;}
-    const len=b.readUInt16BE(i+2);if(len<2)break;i+=2+len;}
-}catch{}return null;};
 
 const sniff = b => b[0] === 0xff && b[1] === 0xd8 ? 'jpg' : b.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ? 'png'
   : b.subarray(0, 4).toString() === 'RIFF' && b.subarray(8, 12).toString() === 'WEBP' ? 'webp' : null;
