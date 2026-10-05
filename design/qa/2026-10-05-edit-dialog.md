@@ -46,3 +46,10 @@ Seven related viewport/touch/overlay tests plus touch, standalone simulation, au
 Shared focus handling now skips disabled textareas and negative-tabindex/hidden controls, handles newly disabled current focus, and sends Tab to the dialog itself while all controls are disabled. Restores prior body overflow, scroll position, and connected opener on cleanup, leaving already-inert unrelated content alone. Removed a duplicate Escape listener in photo modal. Recovery panel password/create/copy controls now honor profile Save busy state too.
 
 New default dialog-edges spec: Chromium, Firefox and WebKit each pass three open/close cycles, both Tab directions, recovery-panel insertion, all-disabled pending save, blocked Escape during save, and exact inert/overflow/focus/scroll restoration. WebKit pending-editor pixels inspected: recovery panel and Save status fit without overlap. Existing keyboard/editor failure/retry tests, coarse-pointer, overlays, 13+24 unrestricted axe states, profile-submit lock and story-confirm axe pass; typecheck passes. Local pending next batch publish.
+
+## Published batch, 10:59 PDT
+
+c7edf74 live. Render Live in 26.5s, health ok, JS/CSS hashes match the tested assets. Temporary token revoked and list reloaded empty, secret files removed, browser released. No production demo content. Smoke/security/typecheck pass. Original build/publish permission and current week task rechecked.
+
+Commit: https://github.com/threadline-app-hq/threadline/commit/c7edf7497da652954e2e7ed6e40c6e5d86c64501
+Deploy: https://dashboard.render.com/web/srv-db1hvigu01pc73ehkd70/deploys/dep-db1uabvlot8c73d6oapg
