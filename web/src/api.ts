@@ -19,7 +19,9 @@ async function call<T>(method: string, url: string, body?: unknown): Promise<T> 
   return data as T;
 }
 export const api = {
-  signup: (handle: string, name: string, password: string) => call<{ token: string; user: User }>('POST', '/api/auth/signup', { handle, name, password }),
+  signup: (handle: string, name: string, password: string) => call<{ token: string; user: User; recoveryCode: string }>('POST', '/api/auth/signup', { handle, name, password }),
+  reset: (handle: string, code: string, password: string) => call<{ token: string; user: User; recoveryCode: string }>('POST', '/api/auth/reset', { handle, code, password }),
+  newRecovery: (password: string) => call<{ recoveryCode: string }>('POST', '/api/auth/recovery-code', { password }),
   login: (handle: string, password: string) => call<{ token: string; user: User }>('POST', '/api/auth/login', { handle, password }),
   me: () => call<User>('GET', '/api/me'),
   feed: (before?: number) => call<{ posts: Post[]; next: number | null }>('GET', '/api/feed?limit=12' + (before ? '&before=' + before : '')),
