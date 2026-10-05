@@ -1,0 +1,16 @@
+import{chromium}from'playwright';import assert from'node:assert/strict';
+const b=await chromium.launch();const p=await b.newPage({viewport:{width:390,height:844}});const B='http://localhost:18180';
+await p.goto(B);await p.getByRole('button',{name:'Join free',exact:true}).click();await p.getByRole('textbox',{name:'Username',exact:true}).fill('dims_'+Date.now());await p.getByRole('textbox',{name:'Password',exact:true}).fill('qa-only-password');await p.getByRole('button',{name:'Sign up',exact:true}).click();await p.getByRole('button',{name:'I saved it, continue'}).click();
+const share=async(w,h)=>{await p.getByRole('button',{name:'create',exact:true}).click();const data=await p.evaluate(([w,h])=>{const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.fillStyle='#4a6a8a';x.fillRect(0,0,w,h);return c.toDataURL('image/png').split(',')[1]},[w,h]);await p.locator('input[type=file]').setInputFiles({name:'dims.png',mimeType:'image/png',buffer:Buffer.from(data,'base64')});await p.getByRole('button',{name:'Share',exact:true}).click();await p.getByRole('button',{name:'Edit profile',exact:true}).waitFor();};
+await share(2000,800);await share(700,1400);
+const posts=await p.evaluate(async()=>{const t=localStorage.getItem('tl_token');const r=await fetch('/api/explore',{headers:{authorization:'Bearer '+t}});return (await r.json()).posts.slice(0,2).map(p=>({w:p.width,h:p.height}))});
+assert.deepEqual(posts,[{w:700,h:1400},{w:1440,h:576}]);
+await p.getByRole('button',{name:'home',exact:true}).click();await p.locator('.media img').first().waitFor();
+const card=await p.locator('.media').first().evaluate(e=>({ratio:getComputedStyle(e).aspectRatio,box:[e.clientWidth,e.clientHeight]}));
+assert.equal(card.ratio,'700 / 1400');assert(card.box[0]>0&&card.box[1]>0);
+const img=await p.locator('.media img').first().evaluate(e=>({w:e.getAttribute('width'),h:e.getAttribute('height')}));
+assert.deepEqual(img,{w:'700',h:'1400'});
+const wide=await p.locator('.media').nth(1).evaluate(e=>({ratio:getComputedStyle(e).aspectRatio,img:[e.querySelector('img').getAttribute('width'),e.querySelector('img').getAttribute('height')]}));
+assert.equal(wide.ratio,'1440 / 576');assert.deepEqual(wide.img,['1440','576']);
+await p.waitForFunction(()=>document.querySelector('.media img')?.naturalWidth>0);await p.waitForTimeout(400);await p.screenshot({path:'/downloads/threadline-qa/image-dimensions-phone.png'});await p.setViewportSize({width:1440,height:1000});await p.waitForTimeout(400);await p.screenshot({path:'/downloads/threadline-qa/image-dimensions-desktop.png'});console.log('Posts persist image dimensions; feed reserves exact aspect before load: passed');
+await b.close();

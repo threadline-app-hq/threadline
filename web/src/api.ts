@@ -1,6 +1,6 @@
 export type Mini = { id: number; handle: string; name: string; avatar?: string | null };
 export type Comment = { id: number; text: string; handle: string; created: number };
-export type Post = { id: number; image: string; caption: string; created: number; user: Mini; likes: number; liked: boolean; saved: boolean; commentCount: number; comments: Comment[] };
+export type Post = { id: number; image: string; width: number | null; height: number | null; caption: string; created: number; user: Mini; likes: number; liked: boolean; saved: boolean; commentCount: number; comments: Comment[] };
 export type User = { avatar?: string | null; id: number; handle: string; name: string; bio: string; followers: number; following: number; posts: number; followedByMe: boolean };
 
 const BASE = ((import.meta as any).env?.VITE_API_BASE as string | undefined) ?? '';

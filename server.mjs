@@ -47,7 +47,9 @@ CREATE TABLE IF NOT EXISTS notifications(id SERIAL PRIMARY KEY, user_id INT NOT 
 CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(user_id, id);
 CREATE INDEX IF NOT EXISTS idx_notif_unread ON notifications(user_id,seen);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS recovery TEXT;
-ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0`;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS width INT;
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS height INT`;
 
 let pool;
 export async function initDb(p) {
@@ -101,12 +103,12 @@ const shapeAll = async (rows, me) => {
     Promise.all(ids.map(id => q('SELECT c.id, c.text, c.created, u.handle FROM comments c JOIN users u ON u.id=c.user_id WHERE c.post_id=$1 ORDER BY c.created DESC, c.id DESC LIMIT 3', id))),
   ]);
   const m = (a) => new Map(a.map(x => [x.post_id, Number(x.c)])); const L = m(lc), C = m(cc), M = new Set(mine.map(x => x.post_id)), S = new Set(sv.map(x => x.post_id));
-  return rows.map((p, i) => ({ id: p.id, image: '/uploads/' + p.image, caption: p.caption, created: p.created, user: { id: p.user_id, handle: p.handle, name: p.name, avatar: p.avatar ? '/uploads/' + p.avatar : null },
+  return rows.map((p, i) => ({ id: p.id, image: '/uploads/' + p.image, width: p.width ?? null, height: p.height ?? null, caption: p.caption, created: p.created, user: { id: p.user_id, handle: p.handle, name: p.name, avatar: p.avatar ? '/uploads/' + p.avatar : null },
     likes: L.get(p.id) || 0, liked: M.has(p.id), saved: S.has(p.id), commentCount: C.get(p.id) || 0, comments: cm[i].reverse() }));
 };
 const shapePost = async (p, me) => (await shapeAll([p], me))[0];
 const notify = (to, actor, type, post, text = '') => to === actor ? null : run('INSERT INTO notifications(user_id,actor,type,post_id,text,created) VALUES($1,$2,$3,$4,$5,$6)', to, actor, type, post, text.slice(0, 120), Date.now()).catch(() => {});
-const POST_SQL = 'SELECT p.id, p.user_id, p.image, p.caption, p.created, u.handle, u.name, u.avatar FROM posts p JOIN users u ON u.id=p.user_id';
+const POST_SQL = 'SELECT p.id, p.user_id, p.image, p.width, p.height, p.caption, p.created, u.handle, u.name, u.avatar FROM posts p JOIN users u ON u.id=p.user_id';
 const page=(url,def=20)=>{const limit=Number(url.searchParams.get('limit'));const l=Number.isInteger(limit)&&limit>0?Math.min(limit,50):def;const cursor=Number(url.searchParams.get('before'));const before=Number.isSafeInteger(cursor)&&cursor>0?cursor:2e9;return{l,before};};
 const userByHandle = async h => (await one('SELECT * FROM users WHERE handle_lc=$1', String(h).toLowerCase())) || bad(404, 'User not found');
 
@@ -123,6 +125,20 @@ const saveImage = async (buf, ext) => {
   const key = crypto.randomUUID() + '.' + ext; await run('INSERT INTO images(key,mime,data) VALUES($1,$2,$3)', key, MIME[ext], buf); return key;
 };
 const dropImage=async key=>{if(key.startsWith('s_')&&SB_URL&&SB_KEY){try{const r=await fetch(`${SB_URL}/storage/v1/object/${SB_BUCKET}/${key}`,{method:'DELETE',headers:{authorization:'Bearer '+SB_KEY},signal:AbortSignal.timeout(15000)});if(!r.ok)console.error('storage deletion failed',r.status);}catch(e){console.error('storage deletion error',e.message);}}else await run('DELETE FROM images WHERE key=$1',key);};
+
+
+const imageDims=(b,ext)=>{try{
+  if(ext==='png'){const w=b.readUInt32BE(16),h=b.readUInt32BE(20);if(w>0&&h>0)return{w,h};}
+  if(ext==='webp'){const tag=b.subarray(12,16).toString('latin1');
+    if(tag==='VP8 '){const w=b.readUInt16LE(26)&0x3fff,h=b.readUInt16LE(28)&0x3fff;if(w>0&&h>0)return{w,h};}
+    if(tag==='VP8L'){const w=1+(((b[22]&0x3f)<<8)|b[21]),h=1+(((b[24]&0xf)<<10)|(b[23]<<2)|((b[22]&0xc0)>>6));if(w>0&&h>0)return{w,h};}
+    if(tag==='VP8X'){const w=1+(b[24]|b[25]<<8|b[26]<<16),h=1+(b[27]|b[28]<<8|b[29]<<16);if(w>0&&h>0)return{w,h};}
+    return null;}
+  let i=2;while(i<b.length-9){if(b[i]!==0xff){i++;continue;}const m=b[i+1];
+    if(m>=0xc0&&m<=0xcf&&m!==0xc4&&m!==0xc8&&m!==0xcc){const h=b.readUInt16BE(i+5),w=b.readUInt16BE(i+7);if(w>0&&h>0)return{w,h};return null;}
+    if(m===0xd8||m===0x01){i+=2;continue;}
+    const len=b.readUInt16BE(i+2);if(len<2)break;i+=2+len;}
+}catch{}return null;};
 
 const sniff = b => b[0] === 0xff && b[1] === 0xd8 ? 'jpg' : b.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ? 'png'
   : b.subarray(0, 4).toString() === 'RIFF' && b.subarray(8, 12).toString() === 'WEBP' ? 'webp' : null;
@@ -206,8 +222,9 @@ route('POST', '/api/posts', true, async ({ me, body, ip }) => {
   const m = /^data:image\/(?:jpeg|png|webp);base64,(.+)$/.exec(String(body.image || '')) || bad(400, 'image must be a base64 data URL (jpeg, png or webp)');
   const buf = Buffer.from(m[1], 'base64'); if (!buf.length || buf.length > MAX_IMAGE) bad(413, 'Image must be under 8 MB');
   const ext = sniff(buf) || bad(400, 'Unsupported or corrupt image');
+  const d = imageDims(buf, ext) || bad(400, 'That image has no readable dimensions');
   const key = await saveImage(buf, ext);
-  const r = await one('INSERT INTO posts(user_id,image,caption,created) VALUES($1,$2,$3,$4) RETURNING id', me, key, String(body.caption || '').slice(0, 2200), Date.now());
+  const r = await one('INSERT INTO posts(user_id,image,caption,created,width,height) VALUES($1,$2,$3,$4,$5,$6) RETURNING id', me, key, String(body.caption || '').slice(0, 2200), Date.now(), d.w, d.h);
   return { status: 201, data: await shapePost(await one(`${POST_SQL} WHERE p.id=$1`, r.id), me) };
 });
 const getPost = async id => { if (!/^\d{1,9}$/.test(id)) bad(404, 'Post not found'); return (await one(`${POST_SQL} WHERE p.id=$1`, Number(id))) || bad(404, 'Post not found'); };
