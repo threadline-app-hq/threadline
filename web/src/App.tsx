@@ -93,6 +93,11 @@ function Create({ done }: { done: () => void }) {
     <button className="primary" disabled={!src || busy} onClick={async () => { setBusy(true); try { await api.createPost(src!, cap); done(); } catch (e: any) { setErr(e.message); setBusy(false); } }}>{busy ? 'Sharing…' : 'Share'}</button></div>;
 }
 
+function More({ on, busy, onVisible }: { on: boolean; busy: boolean; onVisible: () => void }) {
+  const ref = useRef<HTMLDivElement>(null); const cb = useRef(onVisible); cb.current = onVisible;
+  useEffect(() => { const el = ref.current; if (!el || !on) return; const o = new IntersectionObserver(([e]) => { if (e.isIntersecting) cb.current(); }, { rootMargin: '600px' }); o.observe(el); return () => o.disconnect(); }, [on, busy]);
+  return on ? <div ref={ref} className="more">{busy && <span className="spinner" />}</div> : null;
+}
 function EditProfile({ me, onClose, onSaved }: { me: User; onClose: () => void; onSaved: (u: User) => void }) {
   const [name, setName] = useState(me.name); const [bio, setBio] = useState(me.bio || ''); const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
   const save = async (e: React.FormEvent) => { e.preventDefault(); setBusy(true); setErr(''); try { onSaved(await api.updateMe(name.trim() || me.handle, bio)); } catch (x: any) { setErr(x.message); setBusy(false); } };
@@ -105,19 +110,24 @@ export function App() {
   const [me, setMe] = useState<User | null>(null); const [ready, setReady] = useState(!hasToken());
   const [tab, setTab] = useState<Tab>('home'); const [feed, setFeed] = useState<Post[]>([]); const [explore, setExplore] = useState<Post[]>([]); const [saved, setSaved] = useState<Post[]>([]);
   const [prof, setProf] = useState<{ user: User; posts: Post[] } | null>(null); const [open, setOpen] = useState<Post | null>(null); const [dark, setDark] = useState(() => localStorage.getItem('tl_dark') === '1');
-  const [entry, setEntry] = useState<'landing' | 'login' | 'signup'>('landing'); const [editing, setEditing] = useState(false); const [notifs, setNotifs] = useState<Notif[]>([]); const [unread, setUnread] = useState(0); const [q, setQ] = useState(''); const [results, setResults] = useState<User[]>([]); const [postHits, setPostHits] = useState<Post[]>([]); const [toast, setToast] = useState(''); const [loading, setLoading] = useState(false);
+  const [entry, setEntry] = useState<'landing' | 'login' | 'signup'>('landing'); const [feedNext, setFeedNext] = useState<number | null>(null); const [exploreNext, setExploreNext] = useState<number | null>(null); const [more, setMore] = useState(false); const [editing, setEditing] = useState(false); const [notifs, setNotifs] = useState<Notif[]>([]); const [unread, setUnread] = useState(0); const [q, setQ] = useState(''); const [results, setResults] = useState<User[]>([]); const [postHits, setPostHits] = useState<Post[]>([]); const [toast, setToast] = useState(''); const [loading, setLoading] = useState(false);
   const say = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2600); };
   useEffect(() => { setOnAuthLost(() => { setMe(null); }); if (hasToken()) api.me().then(setMe).catch(() => setToken('')).finally(() => setReady(true)); }, []);
   useEffect(() => { localStorage.setItem('tl_dark', dark ? '1' : '0'); }, [dark]);
   const loadProfile = useCallback(async (h: string) => { try { setProf(await api.profile(h)); setTab('profile'); } catch (e: any) { say(e.message); } }, []);
   const refresh = useCallback(async () => {
     if (!me) return; setLoading(true);
-    try { const [f, e, s] = await Promise.all([api.feed(), api.explore(), api.saved()]); setFeed(f.posts); setExplore(e.posts); setSaved(s.posts); if (tab === 'profile' && prof) setProf(await api.profile(prof.user.handle)); } catch (e: any) { say(e.message); } finally { setLoading(false); }
+    try { const [f, e, s] = await Promise.all([api.feed(), api.explore(), api.saved()]); setFeed(f.posts); setFeedNext(f.next); setExplore(e.posts); setExploreNext(e.next); setSaved(s.posts); if (tab === 'profile' && prof) setProf(await api.profile(prof.user.handle)); } catch (e: any) { say(e.message); } finally { setLoading(false); }
   }, [me, tab, prof?.user.handle]);
   useEffect(() => { if (me) refresh(); }, [me, tab]);
   useEffect(() => { if (!me) return; const pull = () => api.notifications().then(r => { setNotifs(r.items); setUnread(r.unread); }).catch(() => {}); pull(); const t = setInterval(pull, 30000); return () => clearInterval(t); }, [me]);
   useEffect(() => { if (tab === 'activity' && unread) { const t = setTimeout(() => api.readNotifications().then(() => setUnread(0)).catch(() => {}), 1200); return () => clearTimeout(t); } }, [tab, unread]);
   useEffect(() => { if (!q.trim()) { setResults([]); return; } const t = setTimeout(() => api.search(q).then(r => { setResults(r.users); setPostHits(r.posts || []); }).catch(() => {}), 250); return () => clearTimeout(t); }, [q]);
+  const loadMore = useCallback(async (kind: 'feed' | 'explore') => {
+    if (more) return; const next = kind === 'feed' ? feedNext : exploreNext; if (!next) return; setMore(true);
+    try { const r = await (kind === 'feed' ? api.feed(next) : api.explore(next)); const add = (l: Post[]) => [...l, ...r.posts.filter(p => !l.some(x => x.id === p.id))];
+      if (kind === 'feed') { setFeed(add); setFeedNext(r.next); } else { setExplore(add); setExploreNext(r.next); } } catch {} finally { setMore(false); }
+  }, [more, feedNext, exploreNext]);
   const upd = (p: Post) => { const m = (l: Post[]) => l.map(x => x.id === p.id ? p : x); setFeed(m); setExplore(m); setSaved(s => p.saved ? (s.some(x => x.id === p.id) ? m(s) : [p, ...s]) : s.filter(x => x.id !== p.id)); setProf(pr => pr && { ...pr, posts: m(pr.posts) }); setOpen(o => o && o.id === p.id ? p : o); };
   const del = async (id: number) => { try { await api.deletePost(id); const f = (l: Post[]) => l.filter(x => x.id !== id); setFeed(f); setExplore(f); setSaved(f); setProf(pr => pr && { ...pr, posts: f(pr.posts) }); say('Post deleted'); } catch (e: any) { say(e.message); } };
   const follow = async (u: User) => { try { const nu = await api.follow(u.handle, !u.followedByMe); setResults(r => r.map(x => x.id === nu.id ? nu : x)); setProf(p => p && p.user.id === nu.id ? { ...p, user: nu } : p); api.feed().then(r => setFeed(r.posts)); } catch (e: any) { say(e.message); } };
@@ -139,12 +149,12 @@ export function App() {
       {tab === 'home' && <div className="home"><section className="col">
         {feed.length === 0 && loading && [0, 1].map(i => <div key={i} className="post sk"><div className="sk-h"><i /><b /></div><div className="sk-m" /><div className="sk-l" /></div>)}
         {feed.length === 0 && !loading && <div className="empty card"><div className="empty-ic"><Ic d={I.heart} size={30} /></div><p><b>Your feed is empty.</b></p><p>Follow people on Explore, or share your first photo.</p><p><button className="primary sm" onClick={() => setTab('explore')}>Find people</button></p></div>}
-        {feed.map(card)}</section>
+        {feed.map(card)}<More on={!!feedNext} busy={more} onVisible={() => loadMore('feed')} /></section>
         <aside className="rail"><div className="meu"><Avatar handle={me.handle} name={me.name} size={46} /><div><b>{me.handle}</b><small>{me.name}</small></div></div></aside></div>}
       {tab === 'explore' && <div className="wide"><div className="search"><Ic d={I.search} size={18} /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Search people and posts" /></div>
         {q ? <>{results.filter(u => u.id !== me.id).map(u => <div key={u.id} className="sug big"><button onClick={() => loadProfile(u.handle)}><Avatar handle={u.handle} name={u.name} size={44} /></button><div><b>{u.handle}</b><small>{u.name} · {u.followers} followers</small></div><button className={u.followedByMe ? 'ghost' : 'primary sm'} onClick={() => follow(u)}>{u.followedByMe ? 'Following' : 'Follow'}</button></div>)}
           {postHits.length > 0 && <><h3 className="hits">Posts</h3><Grid posts={postHits} onOpen={setOpen} /></>}
-          {!results.length && !postHits.length && <p className="empty">Nothing found for "{q}".</p>}</> : <Grid posts={explore} onOpen={setOpen} />}</div>}
+          {!results.length && !postHits.length && <p className="empty">Nothing found for "{q}".</p>}</> : <><Grid posts={explore} onOpen={setOpen} /><More on={!!exploreNext} busy={more} onVisible={() => loadMore('explore')} /></>}</div>}
       {tab === 'create' && <Create done={() => { say('Posted'); loadProfile(me.handle); }} />}
       {tab === 'activity' && <div className="wide"><h2>Activity</h2>{notifs.length === 0 && <p className="empty">Likes, comments and new followers will show up here.</p>}
         {notifs.map((n, i) => <div key={n.id} className={'notif' + (n.seen ? '' : ' new')} style={{ animationDelay: Math.min(i, 10) * 40 + 'ms' }}>
