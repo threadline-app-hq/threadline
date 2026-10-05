@@ -315,3 +315,20 @@ html,body{background:#f6f3ed}
 
 /* The caption stays identified after its placeholder disappears. */
 .caption-field{display:flex;flex-direction:column;gap:8px}.caption-field>span{display:flex;justify-content:space-between;font-size:12px;font-weight:600}.caption-field small{font-size:11px;color:var(--mut);font-weight:400}.create .caption-field textarea{width:100%;font-size:16px;line-height:1.6;min-height:88px;padding:12px 14px}
+
+/* People and activity read as a list, with clear identity and quiet timestamps. */
+.ig .search input{font-size:16px;min-width:0}
+.person-name{display:block;padding:0;text-align:left;font:600 14px/1.45 'Instrument Sans',sans-serif;overflow-wrap:anywhere;color:var(--fg)}
+.person-name:hover{text-decoration:underline;text-underline-offset:3px}
+.search-person{min-width:0}.search-person small{display:block;margin-top:3px;line-height:1.5;overflow-wrap:anywhere}
+.notif{border-bottom:1px solid var(--line);margin:0;padding:18px 12px;align-items:flex-start;animation:none}
+.notif>button:first-child{flex:none;margin-top:2px}
+.notif .notification-copy{min-width:0;flex:1}
+.notif .notification-meta{display:flex;align-items:baseline;justify-content:space-between;gap:12px;line-height:1.45}
+.notification-meta .person-name{min-width:0;flex:1}
+.notif .notification-meta small{flex:none;margin:0;font-size:11px;line-height:1.5;color:var(--mut)}
+.notif .notification-copy p{font-size:14px;line-height:1.55;margin:4px 0 0;overflow-wrap:anywhere}
+.notif .notification-copy .notification-comment{border-left:2px solid var(--line);padding-left:10px;margin-top:8px;white-space:pre-wrap;color:var(--mut)}
+.ig:not(.dark) .notif.new .notification-comment{color:#596273}
+.notif .notification-copy .notification-comment{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
+@media(max-width:480px){.notif{gap:10px;padding:16px 8px}.notif .notification-meta{display:block}.notif .notification-meta small{display:block;margin-top:3px}.notif .notif-photo{min-width:40px;min-height:50px}.notif .notif-photo img{width:40px;height:50px}}
