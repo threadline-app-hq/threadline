@@ -6,7 +6,7 @@ const people = [['mara.treks', 'Mara Ellis', 'Ridges, rivers, rest days.', 'p1.j
   ['neon.nights', 'Ren Park', 'Cities after dark.', 'p7.jpg', 'Rain makes every sign a mirror.'], ['biscuit.the.dog', 'Biscuit', 'Good boy. 2 years old.', 'p8.jpg', 'Found the one stick on the whole beach.']];
 export async function seed({ one, run, hashPw, dir, MIME }) {
   if (Number((await one('SELECT COUNT(*) c FROM users')).c) > 0) return;
-  const pw = hashPw(crypto.randomBytes(24).toString('hex')); let t = Date.now() - people.length * 3600e3;
+  const pw = await hashPw(crypto.randomBytes(24).toString('hex')); let t = Date.now() - people.length * 3600e3;
   for (const [h, n, bio, file, cap] of people) {
     const u = await one('INSERT INTO users(handle,handle_lc,name,bio,pw,created) VALUES($1,$2,$3,$4,$5,$6) RETURNING id', h, h.toLowerCase(), n, bio, pw, Date.now());
     const key = crypto.randomUUID() + '.jpg'; await run('INSERT INTO images(key,mime,data) VALUES($1,$2,$3)', key, MIME.jpg, fs.readFileSync(path.join(dir, file)));

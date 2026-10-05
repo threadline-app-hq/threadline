@@ -13,8 +13,10 @@ export const img = (p: string) => (p.startsWith('http') ? p : BASE + p);
 
 async function call<T>(method: string, url: string, body?: unknown): Promise<T> {
   const requestToken=token;let r:Response;try{r = await fetch(BASE + url, { method, headers: { 'content-type': 'application/json', ...(requestToken ? { authorization: 'Bearer ' + requestToken } : {}) }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(30000) });}catch(e:any){throw new Error(e?.name==='TimeoutError'?'This is taking too long. Please try again.':'Could not connect. Check your connection and try again.');}
+  if(token!==requestToken)throw new Error('Your session changed. Please try again.');
   if(r.status===401&&token&&token===requestToken&&!url.startsWith('/api/auth/')){ setToken(''); onAuthLost(); }
   const data = r.status === 204 ? null : await r.json().catch(() => null);
+  if(token!==requestToken)throw new Error('Your session changed. Please try again.');
   if (!r.ok) throw new Error((data && data.error) || 'Something went wrong');
   if(r.status!==204&&data===null)throw new Error('The server returned an unreadable response. Please try again.');
   return data as T;

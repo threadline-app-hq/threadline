@@ -209,3 +209,5 @@ html,body{overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent;-we
 .comments-status{padding:0 18px 16px;font-size:12px;margin:0;color:var(--mut)}.comments-status.err{color:#b83345}.dark .comments-status.err{color:#ff8795}.notif-photo{flex:none;padding:0;min-width:48px;min-height:60px}.notif-photo img{display:block}
 .sv-gesture.failed{pointer-events:none}.comments-status p{margin:0 0 10px}.dm-in input:disabled{opacity:.65}
 .ig .sv-loading .ghost{background:#fff;color:#171923!important;min-height:44px;border:0}
+.media-error{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--soft);color:var(--fg);gap:12px;padding:24px;font-size:13px}.media-error p{margin:0}
+.side{overflow-y:auto;overscroll-behavior:contain;height:100dvh}.side button{flex-shrink:0}.side .logo{flex-shrink:0}@media(max-height:560px) and (min-width:701px){.side{padding-block:12px;gap:2px}.side .logo{padding-bottom:12px}.side button{padding-block:8px;min-height:40px}.side .push{margin-top:12px}}

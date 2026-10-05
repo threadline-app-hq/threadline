@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import fs from 'node:fs';
 import zlib from 'node:zlib';
+import {promisify} from 'node:util';
 import path from 'node:path';
 const __dir = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dir, 'public');
@@ -29,11 +30,14 @@ CREATE TABLE IF NOT EXISTS saves(user_id INT NOT NULL REFERENCES users(id) ON DE
 CREATE TABLE IF NOT EXISTS follows(follower INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, followee INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, PRIMARY KEY(follower,followee));
 CREATE TABLE IF NOT EXISTS comments(id SERIAL PRIMARY KEY, post_id INT NOT NULL REFERENCES posts(id) ON DELETE CASCADE, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, text TEXT NOT NULL, created BIGINT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_posts_user ON posts(user_id, created);
+CREATE INDEX IF NOT EXISTS idx_posts_user_id ON posts(user_id,id);
 CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id, created);
+CREATE INDEX IF NOT EXISTS idx_comments_order ON comments(post_id,created,id);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT;
 CREATE TABLE IF NOT EXISTS messages(id SERIAL PRIMARY KEY, sender INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, recipient INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, text TEXT NOT NULL, created BIGINT NOT NULL, seen BOOLEAN NOT NULL DEFAULT FALSE);
 CREATE INDEX IF NOT EXISTS idx_msg_pair ON messages(sender, recipient, id);
 CREATE INDEX IF NOT EXISTS idx_msg_recipient ON messages(recipient, seen);
+CREATE INDEX IF NOT EXISTS idx_msg_recipient_id ON messages(recipient,id);
 CREATE TABLE IF NOT EXISTS stories(id SERIAL PRIMARY KEY, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, image TEXT NOT NULL, created BIGINT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_stories_created ON stories(created);
 CREATE INDEX IF NOT EXISTS idx_follows_followee ON follows(followee);
@@ -41,12 +45,14 @@ CREATE INDEX IF NOT EXISTS idx_likes_post ON likes(post_id);
 CREATE INDEX IF NOT EXISTS idx_saves_post ON saves(post_id);
 CREATE TABLE IF NOT EXISTS notifications(id SERIAL PRIMARY KEY, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, actor INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, type TEXT NOT NULL, post_id INT REFERENCES posts(id) ON DELETE CASCADE, text TEXT NOT NULL DEFAULT '', created BIGINT NOT NULL, seen BOOLEAN NOT NULL DEFAULT FALSE);
 CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(user_id, id);
+CREATE INDEX IF NOT EXISTS idx_notif_unread ON notifications(user_id,seen);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS recovery TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0`;
 
 let pool;
 export async function initDb(p) {
   pool = p || new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 8,
+    connectionTimeoutMillis:10000,idleTimeoutMillis:30000,query_timeout:15000,
     ssl: process.env.DATABASE_SSL === 'off' || /localhost|127\.0\.0\.1/.test(process.env.DATABASE_URL || '') ? false : { rejectUnauthorized: false } });
   for (const stmt of SCHEMA.split(';').map(x => x.trim()).filter(Boolean)) await pool.query(stmt);
 }
@@ -57,10 +63,11 @@ const count = async (sql, ...a) => Number((await one(sql, ...a)).c);
 
 // ---- auth: scrypt password hashes, HMAC-signed bearer tokens (30 days)
 const b64 = b => Buffer.from(b).toString('base64url');
-const hashPw = pw => { const s = crypto.randomBytes(16); return s.toString('hex') + ':' + crypto.scryptSync(pw, s, 64).toString('hex'); };
+const scrypt=promisify(crypto.scrypt);
+const hashPw=async pw=>{const s=crypto.randomBytes(16);const h=await scrypt(pw,s,64);return s.toString('hex')+':'+h.toString('hex');};
 const newCode = () => { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; const b = crypto.randomBytes(12); let o = ''; for (let i = 0; i < 12; i++) { o += a[b[i] % 32]; if (i % 4 === 3 && i < 11) o += '-'; } return o; };
 const codeHash = (c, h) => crypto.createHash('sha256').update(h.toLowerCase() + ':' + String(c).toUpperCase().replace(/[^A-Z0-9]/g, '')).digest('hex');
-const checkPw = (pw, stored) => { const [s, h] = stored.split(':'); const x = crypto.scryptSync(pw, Buffer.from(s, 'hex'), 64); return crypto.timingSafeEqual(x, Buffer.from(h, 'hex')); };
+const checkPw=async(pw,stored)=>{const[s,h]=stored.split(':');const x=await scrypt(pw,Buffer.from(s,'hex'),64);return crypto.timingSafeEqual(x,Buffer.from(h,'hex'));};
 const sign = (uid, version = 0) => { const body = b64(JSON.stringify({ uid, version, exp: Date.now() + 30 * 864e5 })); return body + '.' + crypto.createHmac('sha256', SECRET).update(body).digest('base64url'); };
 const verify = tok => {
   const [body, sig] = (tok || '').split('.'); if (!body || !sig) return null;
@@ -115,7 +122,7 @@ const saveImage = async (buf, ext) => {
   }
   const key = crypto.randomUUID() + '.' + ext; await run('INSERT INTO images(key,mime,data) VALUES($1,$2,$3)', key, MIME[ext], buf); return key;
 };
-const dropImage = async key => { if (key.startsWith('s_') && SB_URL && SB_KEY) fetch(`${SB_URL}/storage/v1/object/${SB_BUCKET}/${key}`, { method: 'DELETE', headers: { authorization: 'Bearer ' + SB_KEY } }).catch(() => {}); else await run('DELETE FROM images WHERE key=$1', key); };
+const dropImage=async key=>{if(key.startsWith('s_')&&SB_URL&&SB_KEY){try{const r=await fetch(`${SB_URL}/storage/v1/object/${SB_BUCKET}/${key}`,{method:'DELETE',headers:{authorization:'Bearer '+SB_KEY},signal:AbortSignal.timeout(15000)});if(!r.ok)console.error('storage deletion failed',r.status);}catch(e){console.error('storage deletion error',e.message);}}else await run('DELETE FROM images WHERE key=$1',key);};
 
 const sniff = b => b[0] === 0xff && b[1] === 0xd8 ? 'jpg' : b.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ? 'png'
   : b.subarray(0, 4).toString() === 'RIFF' && b.subarray(8, 12).toString() === 'WEBP' ? 'webp' : null;
@@ -131,7 +138,7 @@ route('POST', '/api/auth/signup', false, async ({ body, ip }) => {
   if(pw.length<8||pw.length>1024)bad(400,'Password must be 8-1024 characters');
   if (await one('SELECT 1 x FROM users WHERE handle_lc=$1', handle.toLowerCase())) bad(409, 'That handle is taken');
   let u; const code = newCode();
-  try { u = await one('INSERT INTO users(handle,handle_lc,name,pw,created,recovery) VALUES($1,$2,$3,$4,$5,$6) RETURNING *', handle, handle.toLowerCase(), name, hashPw(pw), Date.now(), codeHash(code, handle)); }
+  try { u = await one('INSERT INTO users(handle,handle_lc,name,pw,created,recovery) VALUES($1,$2,$3,$4,$5,$6) RETURNING *', handle, handle.toLowerCase(), name, await hashPw(pw), Date.now(), codeHash(code, handle)); }
   catch (e) { if (e.code === '23505') bad(409, 'That handle is taken'); throw e; }
   return { status: 201, data: { token: sign(u.id), user: await publicUser(u, u.id), recoveryCode: code } };
 });
@@ -141,19 +148,19 @@ route('POST', '/api/auth/reset', false, async ({ body, ip }) => {
   const u = await one('SELECT * FROM users WHERE handle_lc=$1', String(body.handle || '').toLowerCase());
   const ok = u && u.recovery && crypto.timingSafeEqual(Buffer.from(codeHash(body.code || '', u.handle)), Buffer.from(u.recovery));
   if (!ok) bad(401, 'Handle or recovery code is wrong');
-  const code = newCode(); const updated=await one('UPDATE users SET pw=$1, recovery=$2, session_version=session_version+1 WHERE id=$3 AND recovery=$4 RETURNING *', hashPw(pw), codeHash(code, u.handle), u.id, u.recovery); if(!updated)bad(401,'Handle or recovery code is wrong');
+  const code = newCode(); const updated=await one('UPDATE users SET pw=$1, recovery=$2, session_version=session_version+1 WHERE id=$3 AND recovery=$4 RETURNING *', await hashPw(pw), codeHash(code, u.handle), u.id, u.recovery); if(!updated)bad(401,'Handle or recovery code is wrong');
   return { data: { token: sign(u.id,updated.session_version), user: await publicUser(u, u.id), recoveryCode: code } };
 });
 route('POST', '/api/auth/recovery-code', true, async ({ me, body }) => {
-  if(limited(String(me),'recovery-code',8,3600e3))bad(429,'Too many attempts, try again later');if(String(body.password||'').length>1024)bad(400,'Password must be at most 1024 characters');const u = await one('SELECT * FROM users WHERE id=$1', me); if (!checkPw(String(body.password || ''), u.pw)) bad(401, 'Wrong password');
+  if(limited(String(me),'recovery-code',8,3600e3))bad(429,'Too many attempts, try again later');if(String(body.password||'').length>1024)bad(400,'Password must be at most 1024 characters');const u = await one('SELECT * FROM users WHERE id=$1', me); if (!await checkPw(String(body.password || ''), u.pw)) bad(401, 'Wrong password');
   const code = newCode(); await run('UPDATE users SET recovery=$1 WHERE id=$2', codeHash(code, u.handle), me); return { data: { recoveryCode: code } };
 });
 route('POST', '/api/auth/login', false, async ({ body, ip }) => {
   if (limited(ip, 'login', 20, 15 * 60e3)) bad(429, 'Too many attempts, try again in a few minutes');
   if(String(body.password||'').length>1024)bad(400,'Password must be at most 1024 characters');
   const u = await one('SELECT * FROM users WHERE handle_lc=$1', String(body.handle || '').trim().toLowerCase());
-  if (!u) { hashPw('x'); bad(401, 'Wrong handle or password'); }
-  if (!checkPw(String(body.password || ''), u.pw)) bad(401, 'Wrong handle or password');
+  if (!u) { await hashPw('x'); bad(401, 'Wrong handle or password'); }
+  if (!await checkPw(String(body.password || ''), u.pw)) bad(401, 'Wrong handle or password');
   return { data: { token: sign(u.id,u.session_version), user: await publicUser(u, u.id) } };
 });
 route('GET', '/api/me', true, async ({ me }) => ({ data: await publicUser(await one('SELECT * FROM users WHERE id=$1', me), me) }));
@@ -164,7 +171,7 @@ route('PATCH', '/api/me', true, async ({ me, body }) => {
     const buf = Buffer.from(m[1], 'base64'); if (!buf.length || buf.length > 1024 * 1024) bad(413, 'Avatar must be under 1 MB');
     const ext = sniff(buf) || bad(400, 'Unsupported or corrupt image'); avatarKey = await saveImage(buf, ext);
   }
-  if (avatarKey) await run('UPDATE users SET avatar=$1 WHERE id=$2', avatarKey, me);
+  if(avatarKey){const old=await one('SELECT avatar FROM users WHERE id=$1',me);await run('UPDATE users SET avatar=$1 WHERE id=$2',avatarKey,me);if(old?.avatar)await dropImage(old.avatar);}
   await run('UPDATE users SET name=COALESCE($1,name), bio=COALESCE($2,bio) WHERE id=$3', body.name ? String(body.name).slice(0, 60) : null, body.bio != null ? String(body.bio).slice(0, 200) : null, me);
   return { data: await publicUser(await one('SELECT * FROM users WHERE id=$1', me), me) };
 });
@@ -246,7 +253,7 @@ route('GET', '/api/messages', true, async ({ me }) => {
 route('GET', '/api/messages/:handle', true, async ({ me, params }) => {
   const u = await userByHandle(params.handle);
   const rows = await q('SELECT id,sender,text,created FROM messages WHERE (sender=$1 AND recipient=$2) OR (sender=$2 AND recipient=$1) ORDER BY id DESC LIMIT 100', me, u.id);
-  await run('UPDATE messages SET seen=TRUE WHERE recipient=$1 AND sender=$2 AND NOT seen', me, u.id);
+  if(rows.length)await run('UPDATE messages SET seen=TRUE WHERE recipient=$1 AND sender=$2 AND NOT seen AND id<=$3',me,u.id,rows[0].id);
   return { data: { user: { id: u.id, handle: u.handle, name: u.name, avatar: u.avatar ? '/uploads/' + u.avatar : null }, messages: rows.reverse().map(r => ({ id: r.id, mine: r.sender === me, text: r.text, created: r.created })) } };
 });
 route('POST', '/api/messages/:handle', true, async ({ me, params, body, ip }) => {
