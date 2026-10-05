@@ -25,7 +25,7 @@ export const api = {
   feed: () => call<{ posts: Post[] }>('GET', '/api/feed?limit=30'),
   explore: () => call<{ posts: Post[] }>('GET', '/api/explore?limit=48'),
   saved: () => call<{ posts: Post[] }>('GET', '/api/saved'),
-  search: (q: string) => call<{ users: User[] }>('GET', '/api/search?q=' + encodeURIComponent(q)),
+  search: (q: string) => call<{ users: User[]; posts: Post[] }>('GET', '/api/search?q=' + encodeURIComponent(q)),
   profile: (h: string) => call<{ user: User; posts: Post[] }>('GET', '/api/users/' + encodeURIComponent(h)),
   follow: (h: string, on: boolean) => call<User>(on ? 'POST' : 'DELETE', `/api/users/${encodeURIComponent(h)}/follow`),
   like: (id: number, on: boolean) => call<Post>(on ? 'POST' : 'DELETE', `/api/posts/${id}/like`),
