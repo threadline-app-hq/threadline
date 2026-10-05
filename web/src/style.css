@@ -308,3 +308,7 @@ html,body{background:#f6f3ed}
 .home .media.measured{min-height:0;max-height:min(78dvh,760px)}.modal .media.measured{min-height:0;max-height:48dvh}
 .home .media.measured,.modal .media.measured{width:100%}
 @media(max-width:700px){.modal .media.measured{max-height:32dvh}}
+
+/* The opening photograph is a page, not a wall-sized poster. */
+@media(min-width:1001px){.notebook-photo{max-width:620px}}
+@media(min-width:701px) and (max-width:1000px){.notebook-intro{grid-template-columns:1fr;gap:0;padding-top:52px}.notebook h1{font-size:72px}.notebook-deck{margin:24px 0 0;max-width:460px}.notebook-deck p{margin-bottom:22px}.notebook-photo{width:76%;margin-left:auto}.notebook-photo>img{height:auto;object-fit:contain}}
