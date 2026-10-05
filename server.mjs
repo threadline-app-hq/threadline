@@ -4,6 +4,11 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+import fs from 'node:fs';
+import path from 'node:path';
+const __dir = path.dirname(fileURLToPath(import.meta.url));
+const PUBLIC = path.join(__dir, 'public');
+const STATIC_MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.ico': 'image/x-icon', '.json': 'application/json' };
 
 const PORT = Number(process.env.PORT || 8080);
 const ORIGIN = process.env.CORS_ORIGIN || '*';
@@ -176,6 +181,13 @@ export const server = http.createServer(async (req, res) => {
       res.writeHead(200, { ...headers, 'content-type': img.mime, 'content-length': img.data.length, 'cache-control': 'public, max-age=31536000, immutable' });
       return res.end(img.data);
     }
+    if (req.method === 'GET' && !url.pathname.startsWith('/api/') && fs.existsSync(PUBLIC)) {
+      let f = path.join(PUBLIC, path.normalize(decodeURIComponent(url.pathname)).replace(/^(\.\.[\/\\])+/, ''));
+      if (!f.startsWith(PUBLIC) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) f = path.join(PUBLIC, 'index.html');
+      const ext = path.extname(f);
+      res.writeHead(200, { ...headers, 'content-type': STATIC_MIME[ext] || 'application/octet-stream', 'cache-control': f.includes('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache' });
+      return fs.createReadStream(f).pipe(res);
+    }
     for (const r of routes) {
       if (r.method !== req.method) continue; const m = r.re.exec(url.pathname); if (!m) continue;
       let me = null;
@@ -190,4 +202,4 @@ export const server = http.createServer(async (req, res) => {
     console.error(e); send(500, { error: 'Internal error' });
   }
 });
-if (process.argv[1] === fileURLToPath(import.meta.url)) { await initDb(); server.listen(PORT, () => console.log(`Threadline API on :${PORT}`)); }
+if (process.argv[1] === fileURLToPath(import.meta.url)) { await initDb(); if (process.env.SEED === '1') { try { await (await import('./seed.mjs')).seed({ q, one, run, hashPw, dir: path.join(__dir, 'seed'), MIME }); server.listen(PORT, () => console.log(`Threadline API on :${PORT}`)); } catch (e) { console.error('Seed skipped:', e.message); } } }
