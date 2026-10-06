@@ -375,3 +375,4 @@ html,body{background:#f6f3ed}
 @media(max-width:700px){.ig .top{min-width:0;width:100%;gap:8px 12px;flex-wrap:wrap}.ig .top .logo{display:block;min-width:0;flex:none;max-width:100%;white-space:normal;overflow-wrap:anywhere;line-height:1.1}.ig .top>span{flex:none;display:flex;gap:4px;margin-left:auto}.ig .top .logo .brand-mark{display:inline-block;vertical-align:middle;margin-right:5px}}
 
 @media(max-width:700px){.dm{height:calc(100dvh - var(--tl-header-height,56px) - 10px - var(--tl-nav-height,76px))}html{scroll-padding-top:calc(var(--tl-header-height,56px) + 8px)}}
+@media(max-width:700px){.dm{min-height:160px}}
