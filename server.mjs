@@ -296,12 +296,12 @@ route('GET', '/api/metrics', false, async ({ ip }) => ({ data: { uptimeSec: Math
 // Developer keys are read-only and scoped to the owning user's data.
 // Tokens are shown once; only SHA256 hashes and a non-secret prefix persist.
 route('GET','/api/developer/keys',true,async({me})=>({data:{keys:await q('SELECT id,name,prefix,created,revoked FROM api_keys WHERE user_id=$1 ORDER BY id DESC',me)}}));
-route('POST','/api/developer/keys',true,async({me,body,ip})=>{
+route('POST','/api/developer/keys',true,async({me,body,ip,sessionVersion})=>{
   if(limited(ip,'key-create:',10,3600000))bad(429,'Too many key requests. Try again later.');
   const name=typeof body.name==='string'?body.name.trim():'';if(!name||name.length>60)bad(400,'Give the key a name of 1 to 60 characters');
   const secret='tlk_'+crypto.randomBytes(32).toString('base64url');const hash=crypto.createHash('sha256').update(secret).digest('hex');
-  const user=await one('SELECT session_version FROM users WHERE id=$1',me);let row;
-  for(let slot=1;slot<=5&&!row;slot++){const candidate=await one('INSERT INTO api_keys(user_id,name,key_hash,prefix,created,slot,session_version) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(user_id,slot) DO NOTHING RETURNING id,name,prefix,created,key_hash',me,name,hash,secret.slice(0,12),Date.now(),slot,user.session_version);if(candidate?.key_hash===hash){const{key_hash,...metadata}=candidate;row=metadata;}}
+  let row;
+  for(let slot=1;slot<=5&&!row;slot++){const candidate=await one('INSERT INTO api_keys(user_id,name,key_hash,prefix,created,slot,session_version) SELECT $1::int,$2::text,$3::text,$4::text,$5::bigint,$6::int,$7::int FROM users WHERE id=$1 AND session_version=$7 ON CONFLICT(user_id,slot) DO NOTHING RETURNING id,name,prefix,created,key_hash',me,name,hash,secret.slice(0,12),Date.now(),slot,sessionVersion);if(candidate?.key_hash===hash){const{key_hash,...metadata}=candidate;row=metadata;}}
   if(!row)bad(409,'Revoke an active key before creating another');
   return {status:201,data:{...row,key:secret,scope:'self:read',notice:'Copy this key now. It will not be shown again.'}};
 });
@@ -377,11 +377,11 @@ export const server = http.createServer(async (req, res) => {
     }
     for (const r of routes) {
       if (r.method !== req.method) continue; const m = r.re.exec(url.pathname); if (!m) continue;
-      let me = null;
+      let me = null,sessionVersion=null;
       if(url.pathname.startsWith('/api/v1/')){const grant=await authenticateKey(req);me=grant.me;headers['x-ratelimit-limit']='60';headers['x-ratelimit-remaining']=String(grant.remaining);headers['x-ratelimit-reset']=String(grant.reset);}
-      if (r.auth) { const auth=verify((req.headers.authorization||'').replace(/^Bearer /,'')); const user=auth&&await one('SELECT session_version FROM users WHERE id=$1',auth.uid);if(!user||Number(user.session_version)!==auth.version)return send(401,{error:'Sign in required'});me=auth.uid; }
+      if (r.auth) { const auth=verify((req.headers.authorization||'').replace(/^Bearer /,'')); const user=auth&&await one('SELECT session_version FROM users WHERE id=$1',auth.uid);if(!user||Number(user.session_version)!==auth.version)return send(401,{error:'Sign in required'});me=auth.uid;sessionVersion=auth.version; }
       const body = ['POST', 'PATCH', 'PUT'].includes(req.method) ? await readBody(req) : {};
-      const out = await r.fn({ me, body, url, ip, params: { ...m.groups } });
+      const out = await r.fn({ me, sessionVersion, body, url, ip, params: { ...m.groups } });
       return send(out.status || 200, out.data);
     }
     return send(404, { error: 'Not found' });

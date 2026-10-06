@@ -173,3 +173,9 @@ Oct6 00:05 Publishedb2d6dda app-only main. Render dep-db29qn6k1f9s739m9090 succe
 - UI Profile>Developer API: name/create/reveal/copy/hide/revoke, key never saved in browser. Public static docs linked from UI with self-only scope, limits/error/revoke/cursors/free-host caveats.
 - Fullsecurity/smoke/typecheck pass. Chromium/WebKit320/390/1440 light/dark unrestrictedaxe, local realcreate/hide/revoke and docs tests pass. Inspected pixels, fixed unstyled input dimensions/colors, then re-tested/re-inspected safe screenshots. Local temporary test keys revoked or destroyed with in-memory DB; none created in production. Safe screenshots for onward sharing hide full test token.
 - PostgreSQL integration live migration/concurrency unverified; no localpostgres binary available. No production schema mutation or publication performed.
+
+## Oct6 05:06 developer safety follow-up
+- Reviewed reset-versus-key-creation race: pass the validated session version into the key insert, conditional on users still having that same version, never mint a key into a newer recovered session. Regression injects reset between auth and insert: no key created.
+- Ran developer schema/queries and concurrent request/key caps under PGlite's PostgreSQL engine in a disposable `/tmp` test environment, not only pg-mem. All passed, including reset invalidation. No production DB touched; this single local engine isn't proof of deployed multi-server timing/performance.
+- Enlarged nav/chrome/header/nav-safe and keyboard tests pass in Chromium/WebKit: 200%labels, shortlandscape,360pxkeyboard, simulatedsafearea retain actions and unrestrictedaxe.
+- Full security/smoke/typecheck rerun pass after conditional session insert.
