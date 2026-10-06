@@ -42,3 +42,5 @@
 @media(prefers-reduced-motion:reduce){.ig .notebook-join{transition:none}.ig .notebook-join:active{transform:none}}
 /* Key revocation is an explicit two-step action, next to the key it affects. */
 .ig .developer-keys li:has(.developer-revoke){flex-wrap:wrap;gap:18px}.ig .developer-revoke{width:100%;border-left:2px solid #b83345;padding:16px 18px;background:var(--soft)}.ig .developer-revoke p{font-size:12px;line-height:1.8;margin:0 0 14px}.ig .developer-revoke>div{display:flex;flex-wrap:wrap;gap:12px}.ig .developer-revoke button{max-width:100%;white-space:normal;min-height:48px}.ig .developer-revoke .danger{background:#b83345;color:#fff}
+.ig .developer-key-record:focus{outline:2px solid var(--blue);outline-offset:6px}
+.ig .sv-h .av{line-height:1;display:flex;align-items:center;justify-content:center;overflow:hidden}
