@@ -190,3 +190,7 @@ Oct6 00:05 Publishedb2d6dda app-only main. Render dep-db29qn6k1f9s739m9090 succe
 - Renderdep-db2egcom7kps73eijoi0 succeeded|Live/sourcebb23af5, health200/newJS exactlocal. Publicdocs loaded andpixelsinspected. v1/app/developerunauth401,docs200. Additivetables only;rollbacknote preservesaccounts/media/messages and previous57cd6e4. No productionsigninfixture/keycreated; parentexplicitly optedout of signedinsmoke withoutusablelogin.
 - B4temporaryURL health now404 at05:24 (was20004:52). RemoveddeadB4origin from Cloudflare; deploymentf40e9a75db3343bcb675adcb4fa387ec; proxyhealth200/newJS exact. Localfailoverreadonly/mutationonce tests pass.
 - Railway refreshed via existingprojectscopedCLI/fromcleanexport bb23af5, deploymentba6d9eb6-8f65-4daf-ac19-7313a1b4d94e. Pendingnewversionhealth/assets confirmation.
+
+05:32 Railwaynewreleaseverified: health200;JS/CSSexactbb23af5 matchingRender;v1unauth401. Render/Cloudflarematchsamechecks. Standbybuildverificationcomplete;B4expired/excluded. No productionsignin/fixture. TrialRailway remains finite,notdurablefreealwayson guarantee.
+
+05:34 developerclipboard follow-up: added synchronousCopy lock, Copying label and generation guard. Revealedkey receives focus; hide/revoke/unmount invalidatespendingcopy so latecopied/failure doesn'tleak to a replacementkey/screen. Chromium/WebKit pendinghide/reject+focusedreveal regressionpass;6viewport/darkDeveloperUI/unrestrictedaxe/typecheck pass. Localonly, no freshpublication. Standbynewversion verified at05:32.
