@@ -360,3 +360,10 @@ html,body{background:#f6f3ed}
 .bottom{align-items:stretch}
 .bottom button{grid-template-rows:26px minmax(13px,auto);height:auto;min-height:54px;align-content:start;padding-block:6px}
 .nav-label{max-width:100%;overflow-wrap:anywhere;line-height:1.15}
+@media(max-width:700px){
+  .ig{padding-bottom:var(--tl-nav-height,76px)}
+  .toast,.session-note{bottom:calc(var(--tl-nav-height,76px) + 8px)}
+  .dm{height:calc(100dvh - 66px - var(--tl-nav-height,76px) - env(safe-area-inset-top))}
+  html{scroll-padding-bottom:calc(var(--tl-nav-height,76px) + 8px)}
+  .create>.primary{scroll-margin-bottom:calc(var(--tl-nav-height,76px) + 14px)}
+}
