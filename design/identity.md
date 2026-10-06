@@ -25,3 +25,7 @@ Use150ms control feedback,200ms dialog arrival, short photo crossfade. No contin
 
 ## Acceptance
 Phone320/390/430, tablet820, desktop1280/1440; all tabs and populated/empty/error/busy states. Check actual pixels, touch, keyboard focus, contrast, motion, long names and text scaling. Preserve existing auth/media/ownership/race protections. No production demo content except specifically approved and fully cleaned. No paid fonts or services.
+
+## Edition two, Oct6 06:42
+
+Parent relayed owner's still-open priority for a bolder overhaul and spring-feel interactions. Earlier "no spring" design hypothesis is superseded for small controls, not for photograph framing or whole-page bounce. The new stage uses a dark ink desktop navigation, oversized field-journal masthead, numbered/divided photographs, round action tools and stronger section rules. Full photos stay uncropped. Confirmed like/save overshoot lightly; no success animation while the request is pending or on remount history. Touch pull-to-refresh has a threshold/lock and springs back; reduced motion uses static feedback. Ordinary Refresh remains available.
