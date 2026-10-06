@@ -49,3 +49,8 @@
 /* A small mechanical cue for pulling the journal, with no false completion. */
 .ig .pull-indicator{font:10px/1.5 monospace;letter-spacing:.3px;gap:8px;color:var(--fg);pointer-events:none}.ig .pull-indicator span{display:grid;place-items:center;width:28px;height:28px;border:1px solid var(--line);border-radius:50%;font:18px/1 monospace;background:var(--bg);color:var(--blue);flex-shrink:0}.ig .pull-indicator:not(.running) span{opacity:1;transform:rotate(var(--pull-turn))}.ig .pull-indicator.running span{border-color:var(--blue)}
 @media(prefers-reduced-motion:reduce){.ig .pull-indicator:not(.running) span{transform:none}.ig .pull-indicator{min-height:38px;height:auto;flex-wrap:wrap}}
+/* Paper sheets land softly; the ink darkroom settles without scaling the photograph. */
+.ig .scrim:not(.closing)>.modal{animation:journal-sheet 300ms cubic-bezier(.2,.8,.2,1) both}.ig .sv:not(.closing)>.sv-card{animation:journal-darkroom 280ms cubic-bezier(.2,.8,.2,1) both}
+@keyframes journal-sheet{0%{opacity:0;transform:translateY(18px) scale(.99)}65%{opacity:1;transform:translateY(-2px) scale(1)}100%{opacity:1;transform:none}}
+@keyframes journal-darkroom{0%{opacity:0;transform:translateY(10px)}70%{opacity:1;transform:translateY(-1px)}100%{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.ig .scrim:not(.closing)>.modal,.ig .sv:not(.closing)>.sv-card{animation:none!important}}
