@@ -307,12 +307,13 @@ route('POST','/api/developer/keys',true,async({me,body,ip,sessionVersion})=>{
   return {status:201,data:{...row,key:secret,scope:'self:read',notice:'Copy this key now. It will not be shown again.'}};
 });
 route('DELETE','/api/developer/keys/:id',true,async({me,params})=>{const id=Number(params.id);if(!Number.isSafeInteger(id)||id<1)bad(400,'Invalid key');const r=await run('UPDATE api_keys SET revoked=TRUE,slot=NULL WHERE id=$1 AND user_id=$2',id,me);if(!r.rowCount)bad(404,'Key not found');return {status:204};});
-const authenticateKey=async(req)=>{
+const authenticateKey=async(req,headers)=>{
  const raw=(req.headers.authorization||'').replace(/^Bearer /,'');if(!/^tlk_[A-Za-z0-9_-]{43}$/.test(raw))bad(401,'A valid API key is required');
  const key=await one('SELECT k.id,k.user_id FROM api_keys k JOIN users u ON u.id=k.user_id WHERE k.key_hash=$1 AND NOT k.revoked AND k.session_version=u.session_version',crypto.createHash('sha256').update(raw).digest('hex'));if(!key)bad(401,'A valid API key is required');
  const bucket=Math.floor(Date.now()/60000);
+ headers['x-ratelimit-limit']='60';headers['x-ratelimit-reset']=String((bucket+1)*60);
  await run('INSERT INTO api_usage(key_id,bucket,hits) VALUES($1,$2,0) ON CONFLICT(key_id,bucket) DO NOTHING',key.id,bucket);
- const used=await one('UPDATE api_usage SET hits=hits+1 WHERE key_id=$1 AND bucket=$2 AND hits<60 RETURNING hits',key.id,bucket);if(!used)bad(429,'API allowance reached. Try again next minute.');
+ const used=await one('UPDATE api_usage SET hits=hits+1 WHERE key_id=$1 AND bucket=$2 AND hits<60 RETURNING hits',key.id,bucket);if(!used){headers['x-ratelimit-remaining']='0';headers['retry-after']=String(Math.max(1,Math.ceil(((bucket+1)*60000-Date.now())/1000)));bad(429,'API allowance reached. Try again next minute.');}
  // Delete only this key's expired counters. Shared DB atomic update enforces
  // the same bucket across server replicas, without trusting client IPs.
  await run('DELETE FROM api_usage WHERE key_id=$1 AND bucket<$2',key.id,bucket-2);
@@ -332,7 +333,7 @@ const readBody = (req, max = 12 * 1024 * 1024) => new Promise((res, rej) => {
 });
 
 export const server = http.createServer(async (req, res) => {
-  const headers = { 'access-control-allow-origin': ORIGIN, 'access-control-allow-headers': 'authorization,content-type', 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS', 'x-content-type-options': 'nosniff', 'x-frame-options': 'DENY', 'referrer-policy': 'strict-origin-when-cross-origin', 'strict-transport-security': 'max-age=31536000; includeSubDomains', 'permissions-policy': 'camera=(), microphone=(), geolocation=()', 'content-security-policy': "default-src 'self'; img-src 'self' data: blob: https://*.supabase.co; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-src https://www.youtube-nocookie.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" };
+  const headers = { 'access-control-allow-origin': ORIGIN, 'access-control-allow-headers': 'authorization,content-type', 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS', 'access-control-expose-headers':'x-ratelimit-limit,x-ratelimit-remaining,x-ratelimit-reset,retry-after,x-request-id', 'x-content-type-options': 'nosniff', 'x-frame-options': 'DENY', 'referrer-policy': 'strict-origin-when-cross-origin', 'strict-transport-security': 'max-age=31536000; includeSubDomains', 'permissions-policy': 'camera=(), microphone=(), geolocation=()', 'content-security-policy': "default-src 'self'; img-src 'self' data: blob: https://*.supabase.co; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-src https://www.youtube-nocookie.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" };
   if (req.url.startsWith('/api/')) headers['cache-control'] = 'no-store';
   const t0 = Date.now(); const rid = crypto.randomUUID().slice(0, 8); headers['x-request-id'] = rid;
   res.on('finish', () => { const ms = Date.now() - t0; stats.n++; stats.ms += ms; if (res.statusCode >= 500) stats.e5++; else if (res.statusCode >= 400) stats.e4++; if (process.env.NODE_ENV === 'production' && !req.url.startsWith('/assets')) console.log(JSON.stringify({ rid, m: req.method, u: req.url.split('?')[0], s: res.statusCode, ms })); });
@@ -379,7 +380,7 @@ export const server = http.createServer(async (req, res) => {
     for (const r of routes) {
       if (r.method !== req.method) continue; const m = r.re.exec(url.pathname); if (!m) continue;
       let me = null,sessionVersion=null;
-      if(url.pathname.startsWith('/api/v1/')){const grant=await authenticateKey(req);me=grant.me;headers['x-ratelimit-limit']='60';headers['x-ratelimit-remaining']=String(grant.remaining);headers['x-ratelimit-reset']=String(grant.reset);}
+      if(url.pathname.startsWith('/api/v1/')){const grant=await authenticateKey(req,headers);me=grant.me;headers['x-ratelimit-limit']='60';headers['x-ratelimit-remaining']=String(grant.remaining);headers['x-ratelimit-reset']=String(grant.reset);}
       if (r.auth) { const auth=verify((req.headers.authorization||'').replace(/^Bearer /,'')); const user=auth&&await one('SELECT session_version FROM users WHERE id=$1',auth.uid);if(!user||Number(user.session_version)!==auth.version)return send(401,{error:'Sign in required'});me=auth.uid;sessionVersion=auth.version; }
       const body = ['POST', 'PATCH', 'PUT'].includes(req.method) ? await readBody(req) : {};
       const out = await r.fn({ me, sessionVersion, body, url, ip, params: { ...m.groups } });
@@ -388,7 +389,7 @@ export const server = http.createServer(async (req, res) => {
     return send(404, { error: 'Not found' });
   } catch (e) {
     if(e instanceof URIError)return send(400,{error:'Invalid URL'});
-    if (e instanceof HttpError || e instanceof FeedError) {if(e.status===429)headers['retry-after']='60';return send(e.status, { error: e.message });}
+    if (e instanceof HttpError || e instanceof FeedError) {if(e.status===429&&!headers['retry-after'])headers['retry-after']='60';return send(e.status, { error: e.message });}
     console.error(e); return send(500, { error: 'Internal error' });
   }
 });
