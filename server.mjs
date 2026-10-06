@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import zlib from 'node:zlib';
 import {promisify} from 'node:util';
 import path from 'node:path';
+import {pipeline} from 'node:stream/promises';
 import {imageDims} from './image-metadata.mjs';
 const __dir = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dir, 'public');
@@ -105,12 +106,14 @@ const shapeAll = async (rows, me) => {
     q(`SELECT post_id FROM likes WHERE user_id=$1 AND post_id IN (${IN})`, me),
     q(`SELECT post_id FROM saves WHERE user_id=$1 AND post_id IN (${IN})`, me),
     q(`SELECT post_id, COUNT(*) c FROM comments WHERE post_id IN (${IN}) GROUP BY post_id`),
-    q(`SELECT c.post_id, c.id, c.text, c.created, u.handle FROM comments c JOIN users u ON u.id=c.user_id WHERE c.post_id IN (${IN}) ORDER BY c.post_id, c.created DESC, c.id DESC`), // one round trip; capped to 3 newest per post below (pg-mem lacks window fns/LATERAL; round trips dominate on pooled PG)
+    // Each indexed subquery returns at most three rows. UNION ALL keeps one
+    // network round trip without transferring a post's full comment history.
+    q(ids.map((_, i) => { const select = `SELECT c.post_id, c.id, c.text, c.created, u.handle FROM comments c JOIN users u ON u.id=c.user_id WHERE c.post_id=$${i + 1} ORDER BY c.created DESC, c.id DESC LIMIT 3`; return ids.length === 1 ? select : `(${select})`; }).join(' UNION ALL '), ...ids),
   ]);
   const m = (a) => new Map(a.map(x => [x.post_id, Number(x.c)])); const L = m(lc), C = m(cc), M = new Set(mine.map(x => x.post_id)), S = new Set(sv.map(x => x.post_id));
   const previews = new Map();
   for (const c of cm) { const k = Number(c.post_id); let g = previews.get(k); if (!g) previews.set(k, g = []); if (g.length < 3) g.push({ id: c.id, text: c.text, created: c.created, handle: c.handle }); }
-  for (const g of previews.values()) g.reverse(); // newest-3 in ascending order, as before
+  for (const g of previews.values()) g.sort((a,b) => Number(a.created)-Number(b.created) || Number(a.id)-Number(b.id)); // newest-3 in ascending order, as before
   return rows.map((p) => ({ id: p.id, image: '/uploads/' + p.image, width: p.width ?? null, height: p.height ?? null, caption: p.caption, created: p.created, user: { id: p.user_id, handle: p.handle, name: p.name, avatar: p.avatar ? '/uploads/' + p.avatar : null },
     likes: L.get(p.id) || 0, liked: M.has(p.id), saved: S.has(p.id), commentCount: C.get(p.id) || 0, comments: previews.get(Number(p.id)) || [] }));
 };
@@ -292,13 +295,14 @@ const readBody = (req, max = 12 * 1024 * 1024) => new Promise((res, rej) => {
 
 export const server = http.createServer(async (req, res) => {
   const headers = { 'access-control-allow-origin': ORIGIN, 'access-control-allow-headers': 'authorization,content-type', 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS', 'x-content-type-options': 'nosniff', 'x-frame-options': 'DENY', 'referrer-policy': 'strict-origin-when-cross-origin', 'strict-transport-security': 'max-age=31536000; includeSubDomains', 'permissions-policy': 'camera=(), microphone=(), geolocation=()', 'content-security-policy': "default-src 'self'; img-src 'self' data: blob: https://*.supabase.co; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" };
+  if (req.url.startsWith('/api/')) headers['cache-control'] = 'no-store';
   const t0 = Date.now(); const rid = crypto.randomUUID().slice(0, 8); headers['x-request-id'] = rid;
   res.on('finish', () => { const ms = Date.now() - t0; stats.n++; stats.ms += ms; if (res.statusCode >= 500) stats.e5++; else if (res.statusCode >= 400) stats.e4++; if (process.env.NODE_ENV === 'production' && !req.url.startsWith('/assets')) console.log(JSON.stringify({ rid, m: req.method, u: req.url.split('?')[0], s: res.statusCode, ms })); });
   const send = (status, data) => { if (data === undefined) { res.writeHead(status, headers); return res.end(); } const json = Buffer.from(JSON.stringify(data));
     if (json.length > 1024 && /\bgzip\b/.test(req.headers['accept-encoding'] || '')) { const z = zlib.gzipSync(json); res.writeHead(status, { ...headers, 'content-type': 'application/json', 'content-encoding': 'gzip', vary: 'accept-encoding' }); return res.end(z); }
     res.writeHead(status, { ...headers, 'content-type': 'application/json' }); res.end(json); };
   try {
-    if(req.method==='HEAD')req.method='GET';
+    if(req.method==='HEAD'){req.originalHead=true;req.method='GET';}
     const url = new URL(req.url, 'http://x'); const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').toString().split(',')[0].trim();
     if (req.method === 'OPTIONS') return send(204);
     if (url.pathname.startsWith('/uploads/') && req.method === 'GET') {
@@ -310,12 +314,29 @@ export const server = http.createServer(async (req, res) => {
       return res.end(img.data);
     }
     if (req.method === 'GET' && !url.pathname.startsWith('/api/') && fs.existsSync(PUBLIC)) {
-      let f = path.join(PUBLIC, path.normalize(decodeURIComponent(url.pathname)).replace(/^(\.\.[\/\\])+/, ''));
-      if (!f.startsWith(PUBLIC) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) f = path.join(PUBLIC, 'index.html');
-      if(f===path.join(PUBLIC,'index.html')&&/\.[a-zA-Z0-9]{1,10}$/.test(url.pathname)&&url.pathname!=='/index.html')return send(404,{error:'Not found'});
+      const index = path.join(PUBLIC, 'index.html');
+      let f = path.resolve(PUBLIC, '.' + decodeURIComponent(url.pathname));
+      const stat = async file => { try { return await fs.promises.stat(file); } catch(e) { if(e.code === 'ENOENT' || e.code === 'ENOTDIR') return null; throw e; } };
+      let info = f.startsWith(PUBLIC + path.sep) ? await stat(f) : null;
+      if (!info?.isFile()) { f = index; info = await stat(f); }
+      if (!info?.isFile()) return send(404, {error:'Not found'});
+      if(f===index&&/\.[a-zA-Z0-9]{1,10}$/.test(url.pathname)&&url.pathname!=='/index.html')return send(404,{error:'Not found'});
       const ext = path.extname(f);
-      if (['.html','.js','.css','.svg','.json','.webmanifest'].includes(ext)&&/\bgzip\b/.test(req.headers['accept-encoding']||'')) { const stream=zlib.createGzip();res.writeHead(200,{...headers,'content-type':STATIC_MIME[ext]||'application/octet-stream','cache-control':'no-cache','content-encoding':'gzip',vary:'accept-encoding'});fs.createReadStream(f).pipe(stream).pipe(res);return; }
-      res.writeHead(200,{...headers,'content-type':STATIC_MIME[ext]||'application/octet-stream','cache-control':'no-cache'});return fs.createReadStream(f).pipe(res);
+      const compressible = ['.html','.js','.css','.svg','.json','.webmanifest'].includes(ext);
+      const gzip = compressible && /\bgzip\b/.test(req.headers['accept-encoding'] || '');
+      const etag = `W/"${info.size.toString(16)}-${Math.trunc(info.mtimeMs).toString(16)}"`;
+      const staticHeaders = {...headers, 'content-type':STATIC_MIME[ext]||'application/octet-stream', 'cache-control':'no-cache', etag, 'last-modified':info.mtime.toUTCString(), ...(compressible ? {vary:'accept-encoding'} : {})};
+      const inm = req.headers['if-none-match'];
+      const matches = inm ? inm.split(',').some(t => t.trim() === '*' || t.trim().replace(/^W\//,'') === etag.replace(/^W\//,''))
+        : req.headers['if-modified-since'] && Math.floor(info.mtimeMs/1000)*1000 <= Date.parse(req.headers['if-modified-since']);
+      if (matches) { res.writeHead(304,staticHeaders); return res.end(); }
+      res.writeHead(200,{...staticHeaders,...(gzip ? {'content-encoding':'gzip'} : {'content-length':info.size})});
+      if (req.originalHead) return res.end();
+      // pipeline closes the file and compression stream when the client leaves.
+      // A post-header read failure must not attempt a second JSON response.
+      try { const source = fs.createReadStream(f); if(gzip) await pipeline(source,zlib.createGzip(),res); else await pipeline(source,res); }
+      catch(e) { if(e.code !== 'ERR_STREAM_PREMATURE_CLOSE' && e.code !== 'ECONNRESET') console.error('static stream failed',e.message); if(!res.destroyed)res.destroy(e); }
+      return;
     }
     for (const r of routes) {
       if (r.method !== req.method) continue; const m = r.re.exec(url.pathname); if (!m) continue;

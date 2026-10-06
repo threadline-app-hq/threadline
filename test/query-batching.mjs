@@ -26,8 +26,8 @@ try {
   await call('POST', `/api/posts/${ids[0]}/save`, null, bob.token);
   await call('POST', `/api/posts/${ids[1]}/like`, null, cara.token);
 
-  let queries = 0; const orig = pool.query.bind(pool);
-  pool.query = (...a) => { queries++; return orig(...a); };
+  let queries = 0; const previewRowCounts = []; const orig = pool.query.bind(pool);
+  pool.query = async (...a) => { queries++; const r = await orig(...a); if (a[0].includes('SELECT c.post_id, c.id, c.text')) previewRowCounts.push(r.rows.length); return r; };
   const feed = (await call('GET', '/api/feed?limit=5', null, bob.token)).j; const feedQ = queries; queries = 0;
   const prof = (await call('GET', '/api/users/alice', null, bob.token)).j; const profQ = queries; queries = 0;
   const srch = (await call('GET', '/api/search?q=a', null, bob.token)).j; const srchQ = queries; queries = 0;
@@ -70,6 +70,7 @@ try {
       assert.deepEqual(strip({ feed, prof, srch, meRes }), strip({ feed: ref.feed, prof: ref.prof, srch: ref.srch, meRes: ref.meRes }));
       console.log('responses identical to pre-change capture. baseline queries:', JSON.stringify({ feedQ: ref.feedQ, profQ: ref.profQ, srchQ: ref.srchQ, meQ: ref.meQ }));
     }
+    assert.deepEqual(previewRowCounts, [8, 8]); // three + two + zero + three + zero, not the full eleven
     // --- query-count ceiling (auth 1 + route queries)
     assert.ok(feedQ <= 7, `feed queries ${feedQ} > 7`);
     assert.ok(profQ <= 9, `profile queries ${profQ} > 9`);

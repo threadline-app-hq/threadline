@@ -2,10 +2,8 @@
 // Serves the app from the first healthy origin. Render is primary;
 // Railway and Back4App are always-on standbys that share the same
 // database and session secret, so any origin can serve any request.
-// Failover happens ONLY on gateway errors (502/503/504, origin did not
-// process the request) or, for idempotent methods, network failure.
-// App-level responses (including 500s) are never replayed to another
-// origin, so a mutation can never be applied twice.
+// Only read-only methods can fail over. Gateway errors can occur after
+// an origin processes a write, so every mutation is attempted once only.
 const ORIGINS = [
   "https://threadline-app-jpc0.onrender.com",
   "https://threadline-production-9c4f.up.railway.app",
@@ -32,11 +30,10 @@ export default {
           body,
           redirect: "manual",
         });
-        // 502/503/504 + Cloudflare edge-origin errors 521/522/523/525/526/530:
-        // all mean the origin app never saw the request.
-        if ([502, 503, 504, 521, 522, 523, 525, 526, 530].includes(resp.status)) {
+        // Retry read-only requests on gateway or edge-origin errors.
+        if (idempotent && [502, 503, 504, 521, 522, 523, 525, 526, 530].includes(resp.status)) {
           sawGatewayError = true;
-          continue; // origin never processed it - safe to try the next one
+          continue; // read-only request
         }
         return resp;
       } catch (err) {
