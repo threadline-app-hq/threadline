@@ -384,3 +384,10 @@ html,body{background:#f6f3ed}
 
 .bub.fresh{animation:message-in 180ms var(--ease) both}
 @media(prefers-reduced-motion:reduce){.bub.fresh{animation:none!important}}
+
+/* Dismissal returns gently, while the existing focus boundary stays in place. */
+.scrim.closing,.sv.closing{pointer-events:none;animation:veil-out 140ms ease-out both}
+.scrim.closing>.modal,.sv.closing>.sv-card{animation:sheet-out 140ms ease-out both}
+@keyframes veil-out{from{opacity:1}to{opacity:0}}
+@keyframes sheet-out{from{transform:none}to{transform:translateY(6px) scale(.995)}}
+@media(prefers-reduced-motion:reduce){.scrim.closing,.sv.closing,.scrim.closing>.modal,.sv.closing>.sv-card{animation:none!important}}

@@ -7,6 +7,6 @@ await p.screenshot({path:'/downloads/threadline-qa/real-cdp-touch-like.png'});
 await p.touchscreen.tap(x,y);await p.waitForTimeout(100);await p.touchscreen.tap(x,y);await p.waitForTimeout(300);assert.equal(await p.locator('.count').innerText(),'1 like');
 await p.getByRole('button',{name:'Unlike',exact:true}).tap();await p.getByRole('button',{name:'Like',exact:true}).waitFor();assert.equal(await p.locator('.count').innerText(),'0 likes');
 await p.getByRole('button',{name:'Save',exact:true}).tap();await p.getByRole('button',{name:'Unsave',exact:true}).waitFor();await p.getByRole('button',{name:'saved',exact:true}).tap();assert.equal(await p.locator('.grid button').count(),1);
-await p.getByRole('button',{name:'Open photo',exact:false}).click();await p.getByRole('dialog',{name:'Post and comments'}).waitFor();await p.keyboard.press('Escape');assert.equal(await p.getByRole('dialog').count(),0);
+await p.getByRole('button',{name:'Open photo',exact:false}).click();await p.getByRole('dialog',{name:'Post and comments'}).waitFor();await p.keyboard.press('Escape');await p.getByRole('dialog').waitFor({state:'hidden'});assert.equal(await p.getByRole('dialog').count(),0);
 await p.emulateMedia({reducedMotion:'reduce'});const styles=await p.locator('main').evaluate(e=>getComputedStyle(e).animationName);assert.equal(styles,'none');
 console.log('Touch double-tap, no-unlike double-tap, unlike, save, modal Escape, reduced motion: passed');await b.close();
