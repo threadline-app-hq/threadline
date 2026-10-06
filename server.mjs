@@ -13,6 +13,7 @@ const __dir = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dir, 'public');
 const STATIC_MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
 
+const gzipAsync = promisify(zlib.gzip);
 const PORT = Number(process.env.PORT || 8080);
 const ORIGIN = process.env.CORS_ORIGIN || '*';
 const SECRET = process.env.SESSION_SECRET || (() => {
@@ -58,6 +59,8 @@ export async function initDb(p) {
   pool = p || new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 8,
     connectionTimeoutMillis:10000,idleTimeoutMillis:30000,query_timeout:15000,
     ssl: process.env.DATABASE_SSL === 'off' || /localhost|127\.0\.0\.1/.test(process.env.DATABASE_URL || '') ? false : { rejectUnauthorized: false } });
+  // Idle connection errors must not become unhandled EventEmitter errors.
+  pool.on?.('error', e => console.error('idle database connection error', e.message));
   for (const stmt of SCHEMA.split(';').map(x => x.trim()).filter(Boolean)) await pool.query(stmt);
 }
 const q = async (sql, ...a) => (await pool.query(sql, a)).rows;
@@ -290,6 +293,7 @@ const readBody = (req, max = 12 * 1024 * 1024) => new Promise((res, rej) => {
   let n=0;let tooLarge=false;const chunks=[];
   req.on('data', c => { n += c.length; if(n>max){if(!tooLarge){tooLarge=true;chunks.length=0;rej(new HttpError(413,'Request too large'));}}else if(!tooLarge)chunks.push(c); });
   req.on('end', () => { if(tooLarge)return;if (!chunks.length) return res({}); try{const value=JSON.parse(Buffer.concat(chunks).toString());if(value===null||typeof value!=='object'||Array.isArray(value))return rej(new HttpError(400,'JSON body must be an object'));res(value);}catch { rej(new HttpError(400, 'Invalid JSON')); } });
+  req.on('aborted', () => { chunks.length=0; rej(new HttpError(400,'Request interrupted')); });
   req.on('error', rej);
 });
 
@@ -298,8 +302,8 @@ export const server = http.createServer(async (req, res) => {
   if (req.url.startsWith('/api/')) headers['cache-control'] = 'no-store';
   const t0 = Date.now(); const rid = crypto.randomUUID().slice(0, 8); headers['x-request-id'] = rid;
   res.on('finish', () => { const ms = Date.now() - t0; stats.n++; stats.ms += ms; if (res.statusCode >= 500) stats.e5++; else if (res.statusCode >= 400) stats.e4++; if (process.env.NODE_ENV === 'production' && !req.url.startsWith('/assets')) console.log(JSON.stringify({ rid, m: req.method, u: req.url.split('?')[0], s: res.statusCode, ms })); });
-  const send = (status, data) => { if (data === undefined) { res.writeHead(status, headers); return res.end(); } const json = Buffer.from(JSON.stringify(data));
-    if (json.length > 1024 && /\bgzip\b/.test(req.headers['accept-encoding'] || '')) { const z = zlib.gzipSync(json); res.writeHead(status, { ...headers, 'content-type': 'application/json', 'content-encoding': 'gzip', vary: 'accept-encoding' }); return res.end(z); }
+  const send = async (status, data) => { if(res.destroyed || res.writableEnded)return; if (data === undefined) { res.writeHead(status, headers); return res.end(); } const json = Buffer.from(JSON.stringify(data));
+    if (json.length > 1024 && /\bgzip\b/.test(req.headers['accept-encoding'] || '')) { const z = await gzipAsync(json); res.writeHead(status, { ...headers, 'content-type': 'application/json', 'content-encoding': 'gzip', vary: 'accept-encoding' }); return res.end(z); }
     res.writeHead(status, { ...headers, 'content-type': 'application/json' }); res.end(json); };
   try {
     if(req.method==='HEAD'){req.originalHead=true;req.method='GET';}
@@ -346,13 +350,25 @@ export const server = http.createServer(async (req, res) => {
       const out = await r.fn({ me, body, url, ip, params: { ...m.groups } });
       return send(out.status || 200, out.data);
     }
-    send(404, { error: 'Not found' });
+    return send(404, { error: 'Not found' });
   } catch (e) {
     if(e instanceof URIError)return send(400,{error:'Invalid URL'});
     if (e instanceof HttpError) return send(e.status, { error: e.message });
-    console.error(e); send(500, { error: 'Internal error' });
+    console.error(e); return send(500, { error: 'Internal error' });
   }
 });
+// Bound slow headers/body delivery and keep-alive socket retention.
+server.headersTimeout = 15000;
+server.requestTimeout = 60000;
+server.keepAliveTimeout = 5000;
+server.maxRequestsPerSocket = 1000;
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) { await initDb(); if (process.env.SEED === '1') { try { await (await import('./seed.mjs')).seed({ q, one, run, hashPw, dir: path.join(__dir, 'seed'), MIME }); } catch (e) { console.error('Seed skipped:', e.message); } } server.listen(PORT, () => console.log(`Threadline API on :${PORT}`)); }
 
-for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 8000).unref(); });
+let stopping = false;
+for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => {
+  if(stopping)return; stopping=true;
+  const deadline=setTimeout(()=>{server.closeAllConnections();process.exit(0);},8000);deadline.unref();
+  server.close(async()=>{try{await pool?.end?.();}catch(e){console.error('database close failed',e.message);}finally{clearTimeout(deadline);process.exit(0);}});
+  server.closeIdleConnections();
+});
