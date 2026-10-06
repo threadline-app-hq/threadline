@@ -184,3 +184,9 @@ Oct6 00:05 Publishedb2d6dda app-only main. Render dep-db29qn6k1f9s739m9090 succe
 - Bound concurrent unique discovery cursors to4 and recheck20-page cache cap at completion, so simultaneous pages cannot burst retained cache. Pacific-midnight budget-reset and concurrency-cap tests pass.
 - Chromium/WebKit pagination regression: duplicatevideoIDs deduped; repeated providercursor stops; atmost1playerafter swipe; navigation destroysiframe. Mocked test only, no liveYouTube claim.
 - Fullsecurity suite rerun passes. Original temporarytokenperpush/revoke question and ownerSure independently recovered from Oct5 00:44 phoneconversation; no tokencreated/pushmade thisrun.
+
+## Oct6 05:26 release
+- Parentrelease decision05:17: publishUI/backend/developerAPI now, hideReels until workingkey. Originalownerweektask/tokenoffer+Sure inspected independently. Commitbb23af5 pushedpublic_repoonly; tokenimmediatelyrevoked/freshlistempty/scratchdeleted. No workflow/GitHubApp grants.
+- Renderdep-db2egcom7kps73eijoi0 succeeded|Live/sourcebb23af5, health200/newJS exactlocal. Publicdocs loaded andpixelsinspected. v1/app/developerunauth401,docs200. Additivetables only;rollbacknote preservesaccounts/media/messages and previous57cd6e4. No productionsigninfixture/keycreated; parentexplicitly optedout of signedinsmoke withoutusablelogin.
+- B4temporaryURL health now404 at05:24 (was20004:52). RemoveddeadB4origin from Cloudflare; deploymentf40e9a75db3343bcb675adcb4fa387ec; proxyhealth200/newJS exact. Localfailoverreadonly/mutationonce tests pass.
+- Railway refreshed via existingprojectscopedCLI/fromcleanexport bb23af5, deploymentba6d9eb6-8f65-4daf-ac19-7313a1b4d94e. Pendingnewversionhealth/assets confirmation.

@@ -1,7 +1,7 @@
 # Standby / failover infrastructure
 
-Threadline runs on Render (primary) with temporary/trial standbys on
-Railway and Back4App, all sharing the same Postgres database and
+Threadline runs on Render (primary) with a trial standby on
+Railway, all sharing the same Postgres database and
 SESSION_SECRET. A Cloudflare Worker (threadline.j6lqjb.workers.dev)
 proxies to Render first and fails over for GET/HEAD/OPTIONS only on
 edge/origin errors (502/503/504/521/522/523/525/526/530) or network
@@ -13,7 +13,7 @@ grants):
 - Railway: `railway up` from a clean export with the project token in
   vault 'Railway deploy token (Threadline)'. Trial credit has a 30-day expiry, but continuous usage can exhaust it earlier.
 - Back4App: scripted in-browser upload from raw.githubusercontent.com
-  (see run notes); free 256MB container. Persistence of the free URL still needs verification.
+  (see run notes); its temporary URL expired at05:24PDT and it is excluded.
 - Cloudflare worker: PUT multipart to
   /accounts/9f35af01b9291268f9bbcb1ea5d22c92/workers/scripts/threadline
   with the token in vault 'Cloudflare deploy token (Threadline)'.

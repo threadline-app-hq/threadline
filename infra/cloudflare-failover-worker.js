@@ -1,13 +1,12 @@
 // Threadline failover proxy.
 // Serves the app from the first healthy origin. Render is primary;
-// Railway and Back4App are always-on standbys that share the same
-// database and session secret, so any origin can serve any request.
+// Railway is a trial standby sharing the same database and session secret.
+// Back4App temporary URL expired and is excluded. Free hosts may sleep.
 // Only read-only methods can fail over. Gateway errors can occur after
 // an origin processes a write, so every mutation is attempted once only.
 const ORIGINS = [
   "https://threadline-app-jpc0.onrender.com",
   "https://threadline-production-9c4f.up.railway.app",
-  "https://threadline-3go33z33.b4a.run",
 ];
 
 export default {
