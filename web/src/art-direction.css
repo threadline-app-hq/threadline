@@ -45,3 +45,7 @@
 .ig .developer-key-record:focus{outline:2px solid var(--blue);outline-offset:6px}
 .ig .sv-h .av{line-height:1;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .ig .developer-keys-title:focus{outline:2px solid var(--blue);outline-offset:6px}
+
+/* A small mechanical cue for pulling the journal, with no false completion. */
+.ig .pull-indicator{font:10px/1.5 monospace;letter-spacing:.3px;gap:8px;color:var(--fg);pointer-events:none}.ig .pull-indicator span{display:grid;place-items:center;width:28px;height:28px;border:1px solid var(--line);border-radius:50%;font:18px/1 monospace;background:var(--bg);color:var(--blue);flex-shrink:0}.ig .pull-indicator:not(.running) span{opacity:1;transform:rotate(var(--pull-turn))}.ig .pull-indicator.running span{border-color:var(--blue)}
+@media(prefers-reduced-motion:reduce){.ig .pull-indicator:not(.running) span{transform:none}.ig .pull-indicator{min-height:38px;height:auto;flex-wrap:wrap}}
