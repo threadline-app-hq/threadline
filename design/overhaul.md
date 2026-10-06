@@ -20,4 +20,8 @@ A private photographic journal, not another stock social dashboard. Keep the ori
 4. Full security, concurrency, pagination and media regression, then source/asset/deployment readback.
 
 ## Shipping
-Local populated fixtures only. Test each meaningful batch, inspect pixels, then publish app-only main with existing approval. No workflow changes or paid upgrades. Keep a truthful ledger of unverified physical-device behavior.
+Local populated fixtures only. Test each meaningful batch, inspect pixels, then recover original publication permission before publishing app-only main. No workflow changes or paid upgrades. Keep a truthful ledger of unverified physical-device behavior.
+
+## New owner scope, October 6 04:07-04:10
+After backend and UI work: research a legitimate community short-video API for a swipe/autoplay, cursor-paged feed. Owner clarified streaming from a cloud API, not uploaded videos, then requested TikTok-like regularly posted content and endless scrolling. Do not equate stock footage with community reels or promise unlimited inventory/rate limits. No platform scraping or limits evasion. Report source terms and free rate/storage limits before choosing.
+Public API follows: keys, rate limits, documented authenticated endpoints. Owner confirmed adding it after explanation that it serves developers, not regular-user speed. Source messages: phonemsg-01M48EB1BEYVE9AJZRX455XDRG, phonemsg-01M48ECA4FRG0K37JMDBE8XQ52, phonemsg-01M48EF634B5C80E6AQM5CYQFF, phonemsg-01M48EGWBYXSPAP5RV8WP0AZWX.
