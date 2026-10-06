@@ -59,3 +59,5 @@
 .ig .pagination-status{display:flex;align-items:center;justify-content:center;gap:12px;border-top:1px solid var(--line);padding:20px 0;width:100%;font:10px/1.6 monospace;color:var(--mut);overflow-wrap:anywhere}.ig .pagination-status .spinner{width:20px;height:20px;border-width:2px;flex-shrink:0}.ig .pagination-status>span:last-child{min-width:0}
 
 .ig .caption-limit{align-self:flex-end;font:10px/1.6 monospace;color:var(--mut);text-align:right}.ig .caption-limit.nearing{color:var(--fg);border-bottom:1px solid var(--fg)}
+
+.ig .dm-in{flex-wrap:wrap}.ig .message-help{flex:0 0 100%;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font:10px/1.5 monospace;color:var(--mut);overflow-wrap:anywhere}.ig .message-help>span{min-width:0}
