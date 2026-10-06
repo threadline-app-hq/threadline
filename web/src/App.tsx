@@ -258,7 +258,7 @@ export function App() {
   const renderedSession=draftSession.current;
   const cls = 'ig' + (dark ? ' dark' : '');
   if(bootErr)return <div className={cls}><div className="authwrap" role="main"><div className="authcard"><h1 className="logo">Threadline</h1><p className="err" role="alert">{bootErr}</p><button className="primary" onClick={()=>setBootRetry(n=>n+1)}>Try again</button><button className="ghost" onClick={()=>{setBootErr('');logout();}}>Log out</button></div></div></div>;
-  if (!ready) return <div className={cls}><div className="loading" role="main" aria-label="Loading Threadline"><span className="spinner" role="status" aria-label="Loading" /></div></div>;
+  if (!ready) return <div className={cls}><div className="loading" role="main" aria-label="Loading Threadline"><h1 className="sr-only">Threadline</h1><span className="spinner" role="status" aria-label="Loading" /></div></div>;
   if (!me) return <div className={cls}>{entry === 'landing' ? <Landing onStart={setEntry} /> : <Auth key={entry} initial={entry} onBack={() => setEntry('landing')} onAuth={u => { setMe(u); setTab('home'); }} />}</div>;
   const nav: [Tab, string][] = [['home', I.home], ['explore', I.search], ['create', I.plus], ['messages', I.send], ['activity', I.bell], ['saved', I.bookmark], ['profile', I.user]];
   const badge = (t: Tab) => { const n = t === 'activity' ? unread : t === 'messages' ? dmUnread : 0; return n > 0 ? <i className="badge">{n > 9 ? '9+' : n}</i> : null; };
