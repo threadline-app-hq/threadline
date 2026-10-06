@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';import {createYouTubeFeed,FeedError} from '../youtube-feed.mjs';
+let time=1000,calls=[];
+const item=(id,status={embeddable:true,privacyStatus:'public',madeForKids:false})=>({id,status,snippet:{title:'Travel',channelTitle:'A creator'},contentDetails:{}});
+const mock=async u=>{calls.push(u);return new Response(JSON.stringify(u.pathname.endsWith('/search')?{items:[{id:{videoId:'abcDEF123_-'}},{id:{videoId:'bad'}},{id:{videoId:'abcDEF123_-'}}],nextPageToken:'NEXT_1'}:{items:[item('abcDEF123_-'),item('kidsDEF123_',{embeddable:true,privacyStatus:'public',madeForKids:true}),item('missDEF123_',{embeddable:true,privacyStatus:'public'}),{...item('age_DEF123_'),contentDetails:{contentRating:{ytRating:'ytAgeRestricted'}}}]}),{status:200});};
+const feed=createYouTubeFeed({key:'test-key',fetcher:mock,now:()=>time,ttl:100,maxSearches:3});
+const [a,b]=await Promise.all([feed(),feed()]);assert.deepEqual(a,b);assert.equal(calls.length,2);assert.equal(a.items.length,1);assert.equal(a.items[0].id,'abcDEF123_-');assert.equal(a.next,'NEXT_1');assert.equal(calls[0].searchParams.get('safeSearch'),'strict');assert.equal(calls[0].searchParams.get('videoEmbeddable'),'true');assert.equal(calls[1].searchParams.get('id'),'abcDEF123_-');assert(!JSON.stringify(a).includes('test-key'));
+await feed();assert.equal(calls.length,2);time=1200;await feed();assert.equal(calls.length,4);await feed('NEXT_1');assert.equal(calls.length,6);
+await assert.rejects(()=>feed('OTHER'),e=>e instanceof FeedError&&e.status===503);
+await assert.rejects(()=>feed('https://evil.invalid'),e=>e.status===400);
+await assert.rejects(()=>createYouTubeFeed({key:''})(),e=>e.status===503);
+await assert.rejects(()=>createYouTubeFeed({key:'x',fetcher:async()=>new Response('',{status:403})})(),e=>e.status===503);
+await assert.rejects(()=>createYouTubeFeed({key:'x',fetcher:async()=>{throw new Error('network');}})(),e=>e.status===503);
+console.log('YouTube discovery: bounded cache/budget, concurrent collapse, strict filters, cursor validation, key not disclosed, safe error states: passed');

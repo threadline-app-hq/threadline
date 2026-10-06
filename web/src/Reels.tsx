@@ -1,0 +1,24 @@
+import React,{useEffect,useRef,useState} from 'react';
+import {api,Reel} from './api';
+import './reels.css';
+export function Reels(){
+  const [items,setItems]=useState<Reel[]>([]),[cursor,setCursor]=useState<string|null>(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[consent,setConsent]=useState(false),[active,setActive]=useState<string|null>(null),[muted,setMuted]=useState(true),[playing,setPlaying]=useState(true),[visible,setVisible]=useState(!document.hidden),[notice,setNotice]=useState('');
+  const container=useRef<HTMLDivElement>(null),lock=useRef(false),alive=useRef(true),seen=useRef(new Set<string>());
+  useEffect(()=>{alive.current=true;const update=()=>setVisible(!document.hidden);document.addEventListener('visibilitychange',update);return()=>{alive.current=false;document.removeEventListener('visibilitychange',update);};},[]);
+  const load=async()=>{if(lock.current||cursor===null)return;lock.current=true;setBusy(true);setError('');try{const page=await api.reels(cursor);if(!alive.current)return;setItems(old=>[...old,...page.items.filter(v=>!old.some(x=>x.id===v.id))].slice(0,200));setNotice(page.notice);seen.current.add(cursor);setCursor(page.next&&!seen.current.has(page.next)&&items.length+page.items.length<200?page.next:null);}catch(e:any){if(alive.current)setError(e.message);}finally{lock.current=false;if(alive.current)setBusy(false);}};
+  useEffect(()=>{load();},[]);
+  useEffect(()=>{const root=container.current;if(!root)return;const ratios=new Map<string,number>();const ob=new IntersectionObserver(entries=>{entries.forEach(e=>ratios.set((e.target as HTMLElement).dataset.video!,e.intersectionRatio));const best=[...ratios].filter(([,r])=>r>.5).sort((a,b)=>b[1]-a[1])[0];setActive(best?.[0]||null);},{threshold:[0,.5,.51,.75,1]});root.querySelectorAll('[data-video]').forEach(el=>ob.observe(el));return()=>ob.disconnect();},[items]);
+  useEffect(()=>{const root=container.current,sentinel=root?.querySelector('.reel-more');if(!root||!sentinel||busy||error||cursor===null)return;const ob=new IntersectionObserver(e=>{if(e.some(x=>x.isIntersecting))load();},{root,rootMargin:'200px'});ob.observe(sentinel);return()=>ob.disconnect();},[cursor,busy,error,items]);
+  return <section className="reels-shell" aria-labelledby="reels-title"><div className="section-heading"><h2 id="reels-title">Short videos</h2><p>Community videos, played by YouTube.</p></div>
+    {!consent&&<div className="reel-consent"><p>Playing videos connects to YouTube and shares your connection information with Google. YouTube's player may show ads. Playback starts muted as you swipe; some videos may be landscape.</p><button className="primary" onClick={()=>setConsent(true)}>Allow YouTube playback</button><a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer">Google privacy policy</a></div>}
+    {consent&&<div className="reel-tools"><button className="ghost" onClick={()=>setPlaying(v=>!v)}>{playing?'Pause playback':'Resume playback'}</button><button className="ghost" onClick={()=>setMuted(v=>!v)}>{muted?'Turn sound on':'Mute sound'}</button><button className="link" onClick={()=>setConsent(false)}>Stop YouTube playback</button></div>}
+    <div ref={container} className="reels-scroll" tabIndex={0} role="region" aria-label="Swipe short videos. Use arrow keys or scroll to move between videos.">
+      {items.map(v=><article className="reel-card" key={v.id} aria-label={v.title}><div className="reel-player" data-video={v.id}>{consent&&visible&&playing&&active===v.id?<iframe key={v.id+':'+muted} src={v.embedUrl+'?autoplay=1&mute='+(muted?'1':'0')+'&playsinline=1&controls=1&rel=0'} title={'YouTube player: '+v.title} allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin"/>:<div className="reel-placeholder"><span>YouTube</span><p>{consent?'Scroll here to play': 'Allow playback to watch'}</p></div>}</div><div className="reel-caption"><small>YouTube · {v.channel}</small><h3>{v.title}</h3><a href={v.watchUrl} target="_blank" rel="noreferrer">Watch on YouTube</a></div></article>)}
+      {error&&<div className="load-error" role="alert"><p>{error}</p><button className="ghost" disabled={busy} onClick={load}>Try again</button></div>}
+      {busy&&<p className="empty" role="status">Loading short videos...</p>}
+      {!busy&&!error&&items.length===0&&<div className="quiet-start"><h3>No videos available right now.</h3><p>Try discovery again later.</p></div>}
+      {cursor!==null&&!error&&<div className="reel-more"><button className="ghost" disabled={busy} onClick={load}>Load more videos</button></div>}
+      {cursor===null&&items.length>0&&<p className="empty">You've reached the end of this set. More discovery may be available later.</p>}
+    </div><p className="reel-notice">{notice||'Discovery has daily limits. Threadline does not download or host these videos.'}</p>
+  </section>;
+}

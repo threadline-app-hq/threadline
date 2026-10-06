@@ -1,3 +1,5 @@
+export type Reel={id:string;title:string;channel:string;source:'YouTube';watchUrl:string;embedUrl:string};
+export type ReelPage={items:Reel[];next:string|null;notice:string};
 export type Mini = { id: number; handle: string; name: string; avatar?: string | null };
 export type Comment = { id: number; text: string; handle: string; created: number };
 export type Post = { id: number; image: string; width: number | null; height: number | null; caption: string; created: number; user: Mini; likes: number; liked: boolean; saved: boolean; commentCount: number; comments: Comment[] };
@@ -29,6 +31,7 @@ export const api = {
   newRecovery: (password: string) => call<{ recoveryCode: string }>('POST', '/api/auth/recovery-code', { password }),
   login: (handle: string, password: string) => call<{ token: string; user: User }>('POST', '/api/auth/login', { handle, password }),
   me: () => call<User>('GET', '/api/me'),
+  reels: (cursor='') => call<ReelPage>('GET','/api/reels'+(cursor?'?cursor='+encodeURIComponent(cursor):'')),
   feed: (before?: number) => call<{ posts: Post[]; next: number | null }>('GET', '/api/feed?limit=12' + (before ? '&before=' + before : '')),
   explore: (before?: number) => call<{ posts: Post[]; next: number | null }>('GET', '/api/explore?limit=24' + (before ? '&before=' + before : '')),
   saved: () => call<{ posts: Post[] }>('GET', '/api/saved'),

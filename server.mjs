@@ -9,6 +9,8 @@ import {promisify} from 'node:util';
 import path from 'node:path';
 import {pipeline} from 'node:stream/promises';
 import {imageDims} from './image-metadata.mjs';
+import {createYouTubeFeed,FeedError} from './youtube-feed.mjs';
+const youtubeFeed=createYouTubeFeed();
 const __dir = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dir, 'public');
 const STATIC_MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
@@ -287,6 +289,7 @@ route('GET', '/api/notifications', true, async ({ me }) => {
 });
 route('POST', '/api/notifications/read', true, async ({ me,body }) => {const through=body.throughId;if(through!==undefined&&(!Number.isSafeInteger(through)||through<1))bad(400,'Invalid notification boundary');if(through!==undefined)await run('UPDATE notifications SET seen=TRUE WHERE user_id=$1 AND NOT seen AND id<=$2',me,through);else await run('UPDATE notifications SET seen=TRUE WHERE user_id=$1 AND NOT seen',me);return {status:204};});
 route('GET', '/api/metrics', false, async ({ ip }) => ({ data: { uptimeSec: Math.round(process.uptime()), requests: stats.n, errors5xx: stats.e5, errors4xx: stats.e4, avgMs: stats.n ? Math.round(stats.ms / stats.n) : 0, memMB: Math.round(process.memoryUsage().rss / 1048576), version: '2.1' } }));
+route('GET', '/api/reels', true, async ({url,ip}) => {if(limited(ip,'reels:',60,60000))bad(429,'Too many video requests. Try again in a minute.');return {data:await youtubeFeed(url.searchParams.get('cursor')||'')};});
 route('GET', '/api/health', false, async () => { await one('SELECT 1 x'); return { data: { ok: true } }; });
 
 const readBody = (req, max = 12 * 1024 * 1024) => new Promise((res, rej) => {
@@ -298,7 +301,7 @@ const readBody = (req, max = 12 * 1024 * 1024) => new Promise((res, rej) => {
 });
 
 export const server = http.createServer(async (req, res) => {
-  const headers = { 'access-control-allow-origin': ORIGIN, 'access-control-allow-headers': 'authorization,content-type', 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS', 'x-content-type-options': 'nosniff', 'x-frame-options': 'DENY', 'referrer-policy': 'strict-origin-when-cross-origin', 'strict-transport-security': 'max-age=31536000; includeSubDomains', 'permissions-policy': 'camera=(), microphone=(), geolocation=()', 'content-security-policy': "default-src 'self'; img-src 'self' data: blob: https://*.supabase.co; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" };
+  const headers = { 'access-control-allow-origin': ORIGIN, 'access-control-allow-headers': 'authorization,content-type', 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS', 'x-content-type-options': 'nosniff', 'x-frame-options': 'DENY', 'referrer-policy': 'strict-origin-when-cross-origin', 'strict-transport-security': 'max-age=31536000; includeSubDomains', 'permissions-policy': 'camera=(), microphone=(), geolocation=()', 'content-security-policy': "default-src 'self'; img-src 'self' data: blob: https://*.supabase.co; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-src https://www.youtube-nocookie.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" };
   if (req.url.startsWith('/api/')) headers['cache-control'] = 'no-store';
   const t0 = Date.now(); const rid = crypto.randomUUID().slice(0, 8); headers['x-request-id'] = rid;
   res.on('finish', () => { const ms = Date.now() - t0; stats.n++; stats.ms += ms; if (res.statusCode >= 500) stats.e5++; else if (res.statusCode >= 400) stats.e4++; if (process.env.NODE_ENV === 'production' && !req.url.startsWith('/assets')) console.log(JSON.stringify({ rid, m: req.method, u: req.url.split('?')[0], s: res.statusCode, ms })); });
@@ -353,7 +356,7 @@ export const server = http.createServer(async (req, res) => {
     return send(404, { error: 'Not found' });
   } catch (e) {
     if(e instanceof URIError)return send(400,{error:'Invalid URL'});
-    if (e instanceof HttpError) return send(e.status, { error: e.message });
+    if (e instanceof HttpError || e instanceof FeedError) return send(e.status, { error: e.message });
     console.error(e); return send(500, { error: 'Internal error' });
   }
 });

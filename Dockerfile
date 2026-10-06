@@ -2,7 +2,7 @@ FROM node:22-slim
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
-COPY server.mjs image-metadata.mjs seed.mjs ./
+COPY youtube-feed.mjs server.mjs image-metadata.mjs seed.mjs ./
 COPY seed ./seed
 COPY public ./public
 ENV NODE_ENV=production PORT=8080
