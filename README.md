@@ -51,3 +51,9 @@ The feed uses YouTube's official privacy-enhanced iframe after an explicit playb
 Sources: https://developers.google.com/youtube/v3/docs/search/list, https://developers.google.com/youtube/v3/docs/videos, https://developers.google.com/youtube/terms/required-minimum-functionality, https://developers.google.com/youtube/v3/determine_quota_cost.
 
 `node test/reels-ui.mjs` tests local unconfigured behavior and mocked discovery/player responses in Chromium/WebKit. Its player test does not prove live Google signup, API discovery, video availability or actual YouTube autoplay.
+
+## Developer API v1
+
+Implemented locally: `/api/v1/me` and `/api/v1/posts`, read-only and restricted to the key owner's profile/photographs. Signed-in users manage up to five keys via Profile > Developer API. Full keys are revealed once, SHA256 hashes only persist, revocation is owner-scoped, and account recovery invalidates/revokes keys. Keys cannot authenticate session/app endpoints. No DM/recovery/relationship-identity access. `/developers.html` documents authentication, pagination, errors, revocation and rate limits.
+
+The fixed-minute 60-request/key limiter uses an atomic conditional shared-Postgres update. Active-key slots use a `(user_id,slot)` unique constraint, not a race-prone count-and-create limit. Tests cover concurrent 65-call quota attempts, concurrent key creation, recovery invalidation, session/key isolation, no browser persistence, reveal/hide/revoke and unrestricted UI axe. Tests currently use pg-mem; live PostgreSQL migrations/concurrency and deployed endpoints still require release validation. No production test accounts or keys have been created.

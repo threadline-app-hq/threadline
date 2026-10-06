@@ -165,3 +165,11 @@ Oct6 00:05 Publishedb2d6dda app-only main. Render dep-db29qn6k1f9s739m9090 succe
 - Fullsecurity/smoke/typecheck and Chromium/WebKit320/390/1440 unrestricted axe and consent/pause/revoke/end-state tests pass. Discovery/player responses are local mocks, not live playback proof. WebKit initial mock interception failure was its service-worker-owned requests, not app retry: blocking service workers in this specific mocked test fixed interception.
 - Inspected actual320/390/1440 screenshots: nav fits, consent and player controls clear, no overlays on player. Short mobile caption requires page scroll. Live playback/API quota remains unverified until key available.
 - Back4App/Railway/Cloudflare health returned200at04:52; Back4App survived initial60minute window, not proof of permanent free tier.
+
+## Oct6 05:02 PDT: developer API local batch
+- Read-only v1 self profile/photos only, paginated. No messaging/write API and no disclosure of other users' relationship identities.
+- One-time256bit random keys, SHA256 only persisted, up to5active keys through unique owner slots with conflict handling, owner-only revoke, reset session_version check and key revocation. Key/session auth separated.
+- 60requests/fixedminute/key enforced by atomic sharedDB conditional update; concurrent65-call test returns exact remaining57successes/8rate-limit after prior3calls. Concurrent8keycreates cap at5. pg-mem needed RETURNING hash match to distinguish conflict-result emulation; realPostgres returns no row on DO NOTHING.
+- UI Profile>Developer API: name/create/reveal/copy/hide/revoke, key never saved in browser. Public static docs linked from UI with self-only scope, limits/error/revoke/cursors/free-host caveats.
+- Fullsecurity/smoke/typecheck pass. Chromium/WebKit320/390/1440 light/dark unrestrictedaxe, local realcreate/hide/revoke and docs tests pass. Inspected pixels, fixed unstyled input dimensions/colors, then re-tested/re-inspected safe screenshots. Local temporary test keys revoked or destroyed with in-memory DB; none created in production. Safe screenshots for onward sharing hide full test token.
+- PostgreSQL integration live migration/concurrency unverified; no localpostgres binary available. No production schema mutation or publication performed.

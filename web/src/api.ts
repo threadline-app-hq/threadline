@@ -1,3 +1,4 @@
+export type DeveloperKey={id:number;name:string;prefix:string;created:number;revoked:boolean};
 export type Reel={id:string;title:string;channel:string;source:'YouTube';watchUrl:string;embedUrl:string};
 export type ReelPage={items:Reel[];next:string|null;notice:string};
 export type Mini = { id: number; handle: string; name: string; avatar?: string | null };
@@ -31,6 +32,9 @@ export const api = {
   newRecovery: (password: string) => call<{ recoveryCode: string }>('POST', '/api/auth/recovery-code', { password }),
   login: (handle: string, password: string) => call<{ token: string; user: User }>('POST', '/api/auth/login', { handle, password }),
   me: () => call<User>('GET', '/api/me'),
+  developerKeys:()=>call<{keys:DeveloperKey[]}>('GET','/api/developer/keys'),
+  createKey:(name:string)=>call<DeveloperKey&{key:string;notice:string}>('POST','/api/developer/keys',{name}),
+  revokeKey:(id:number)=>call<null>('DELETE','/api/developer/keys/'+id),
   reels: (cursor='') => call<ReelPage>('GET','/api/reels'+(cursor?'?cursor='+encodeURIComponent(cursor):'')),
   feed: (before?: number) => call<{ posts: Post[]; next: number | null }>('GET', '/api/feed?limit=12' + (before ? '&before=' + before : '')),
   explore: (before?: number) => call<{ posts: Post[]; next: number | null }>('GET', '/api/explore?limit=24' + (before ? '&before=' + before : '')),

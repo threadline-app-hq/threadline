@@ -54,7 +54,10 @@ CREATE INDEX IF NOT EXISTS idx_notif_unread ON notifications(user_id,seen);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS recovery TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE posts ADD COLUMN IF NOT EXISTS width INT;
-ALTER TABLE posts ADD COLUMN IF NOT EXISTS height INT`;
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS height INT;
+CREATE TABLE IF NOT EXISTS api_keys(id SERIAL PRIMARY KEY,user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,name TEXT NOT NULL,key_hash TEXT UNIQUE NOT NULL,prefix TEXT NOT NULL,created BIGINT NOT NULL,revoked BOOLEAN NOT NULL DEFAULT FALSE,slot INT,session_version INT NOT NULL,UNIQUE(user_id,slot));
+CREATE INDEX IF NOT EXISTS idx_api_keys_owner ON api_keys(user_id,id);
+CREATE TABLE IF NOT EXISTS api_usage(key_id INT NOT NULL REFERENCES api_keys(id) ON DELETE CASCADE,bucket BIGINT NOT NULL,hits INT NOT NULL,PRIMARY KEY(key_id,bucket))`;
 
 let pool;
 export async function initDb(p) {
@@ -169,6 +172,7 @@ route('POST', '/api/auth/reset', false, async ({ body, ip }) => {
   const ok = u && u.recovery && crypto.timingSafeEqual(Buffer.from(codeHash(body.code || '', u.handle)), Buffer.from(u.recovery));
   if (!ok) bad(401, 'Handle or recovery code is wrong');
   const code = newCode(); const updated=await one('UPDATE users SET pw=$1, recovery=$2, session_version=session_version+1 WHERE id=$3 AND recovery=$4 RETURNING *', await hashPw(pw), codeHash(code, u.handle), u.id, u.recovery); if(!updated)bad(401,'Handle or recovery code is wrong');
+  await run('UPDATE api_keys SET revoked=TRUE,slot=NULL WHERE user_id=$1',u.id);
   return { data: { token: sign(u.id,updated.session_version), user: await publicUser(u, u.id), recoveryCode: code } };
 });
 route('POST', '/api/auth/recovery-code', true, async ({ me, body }) => {
@@ -289,7 +293,33 @@ route('GET', '/api/notifications', true, async ({ me }) => {
 });
 route('POST', '/api/notifications/read', true, async ({ me,body }) => {const through=body.throughId;if(through!==undefined&&(!Number.isSafeInteger(through)||through<1))bad(400,'Invalid notification boundary');if(through!==undefined)await run('UPDATE notifications SET seen=TRUE WHERE user_id=$1 AND NOT seen AND id<=$2',me,through);else await run('UPDATE notifications SET seen=TRUE WHERE user_id=$1 AND NOT seen',me);return {status:204};});
 route('GET', '/api/metrics', false, async ({ ip }) => ({ data: { uptimeSec: Math.round(process.uptime()), requests: stats.n, errors5xx: stats.e5, errors4xx: stats.e4, avgMs: stats.n ? Math.round(stats.ms / stats.n) : 0, memMB: Math.round(process.memoryUsage().rss / 1048576), version: '2.1' } }));
-route('GET', '/api/reels', true, async ({url,ip}) => {if(limited(ip,'reels:',60,60000))bad(429,'Too many video requests. Try again in a minute.');return {data:await youtubeFeed(url.searchParams.get('cursor')||'')};});
+// Developer keys are read-only and scoped to the owning user's data.
+// Tokens are shown once; only SHA256 hashes and a non-secret prefix persist.
+route('GET','/api/developer/keys',true,async({me})=>({data:{keys:await q('SELECT id,name,prefix,created,revoked FROM api_keys WHERE user_id=$1 ORDER BY id DESC',me)}}));
+route('POST','/api/developer/keys',true,async({me,body,ip})=>{
+  if(limited(ip,'key-create:',10,3600000))bad(429,'Too many key requests. Try again later.');
+  const name=typeof body.name==='string'?body.name.trim():'';if(!name||name.length>60)bad(400,'Give the key a name of 1 to 60 characters');
+  const secret='tlk_'+crypto.randomBytes(32).toString('base64url');const hash=crypto.createHash('sha256').update(secret).digest('hex');
+  const user=await one('SELECT session_version FROM users WHERE id=$1',me);let row;
+  for(let slot=1;slot<=5&&!row;slot++){const candidate=await one('INSERT INTO api_keys(user_id,name,key_hash,prefix,created,slot,session_version) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(user_id,slot) DO NOTHING RETURNING id,name,prefix,created,key_hash',me,name,hash,secret.slice(0,12),Date.now(),slot,user.session_version);if(candidate?.key_hash===hash){const{key_hash,...metadata}=candidate;row=metadata;}}
+  if(!row)bad(409,'Revoke an active key before creating another');
+  return {status:201,data:{...row,key:secret,scope:'self:read',notice:'Copy this key now. It will not be shown again.'}};
+});
+route('DELETE','/api/developer/keys/:id',true,async({me,params})=>{const id=Number(params.id);if(!Number.isSafeInteger(id)||id<1)bad(400,'Invalid key');const r=await run('UPDATE api_keys SET revoked=TRUE,slot=NULL WHERE id=$1 AND user_id=$2',id,me);if(!r.rowCount)bad(404,'Key not found');return {status:204};});
+const authenticateKey=async(req)=>{
+ const raw=(req.headers.authorization||'').replace(/^Bearer /,'');if(!/^tlk_[A-Za-z0-9_-]{43}$/.test(raw))bad(401,'A valid API key is required');
+ const key=await one('SELECT k.id,k.user_id FROM api_keys k JOIN users u ON u.id=k.user_id WHERE k.key_hash=$1 AND NOT k.revoked AND k.session_version=u.session_version',crypto.createHash('sha256').update(raw).digest('hex'));if(!key)bad(401,'A valid API key is required');
+ const bucket=Math.floor(Date.now()/60000);
+ await run('INSERT INTO api_usage(key_id,bucket,hits) VALUES($1,$2,0) ON CONFLICT(key_id,bucket) DO NOTHING',key.id,bucket);
+ const used=await one('UPDATE api_usage SET hits=hits+1 WHERE key_id=$1 AND bucket=$2 AND hits<60 RETURNING hits',key.id,bucket);if(!used)bad(429,'API allowance reached. Try again next minute.');
+ // Delete only this key's expired counters. Shared DB atomic update enforces
+ // the same bucket across server replicas, without trusting client IPs.
+ await run('DELETE FROM api_usage WHERE key_id=$1 AND bucket<$2',key.id,bucket-2);
+ return {me:key.user_id,remaining:60-Number(used.hits),reset:(bucket+1)*60};
+};
+route('GET','/api/v1/me',false,async({me})=>({data:await publicUser(await one('SELECT * FROM users WHERE id=$1',me),me)}));
+route('GET','/api/v1/posts',false,async({me,url})=>{const{l,before}=page(url);const rows=await q('SELECT id,image,caption,created,width,height FROM posts WHERE user_id=$1 AND id<$2 ORDER BY id DESC LIMIT $3',me,before,l+1);const items=rows.slice(0,l).map(p=>({...p,image:'/uploads/'+p.image}));return{data:{posts:items,next:rows.length>l?items.at(-1).id:null}};});
+route('GET', '/api/reels' , true, async ({url,ip}) => {if(limited(ip,'reels:',60,60000))bad(429,'Too many video requests. Try again in a minute.');return {data:await youtubeFeed(url.searchParams.get('cursor')||'')};});
 route('GET', '/api/health', false, async () => { await one('SELECT 1 x'); return { data: { ok: true } }; });
 
 const readBody = (req, max = 12 * 1024 * 1024) => new Promise((res, rej) => {
@@ -348,6 +378,7 @@ export const server = http.createServer(async (req, res) => {
     for (const r of routes) {
       if (r.method !== req.method) continue; const m = r.re.exec(url.pathname); if (!m) continue;
       let me = null;
+      if(url.pathname.startsWith('/api/v1/')){const grant=await authenticateKey(req);me=grant.me;headers['x-ratelimit-limit']='60';headers['x-ratelimit-remaining']=String(grant.remaining);headers['x-ratelimit-reset']=String(grant.reset);}
       if (r.auth) { const auth=verify((req.headers.authorization||'').replace(/^Bearer /,'')); const user=auth&&await one('SELECT session_version FROM users WHERE id=$1',auth.uid);if(!user||Number(user.session_version)!==auth.version)return send(401,{error:'Sign in required'});me=auth.uid; }
       const body = ['POST', 'PATCH', 'PUT'].includes(req.method) ? await readBody(req) : {};
       const out = await r.fn({ me, body, url, ip, params: { ...m.groups } });
@@ -356,7 +387,7 @@ export const server = http.createServer(async (req, res) => {
     return send(404, { error: 'Not found' });
   } catch (e) {
     if(e instanceof URIError)return send(400,{error:'Invalid URL'});
-    if (e instanceof HttpError || e instanceof FeedError) return send(e.status, { error: e.message });
+    if (e instanceof HttpError || e instanceof FeedError) {if(e.status===429)headers['retry-after']='60';return send(e.status, { error: e.message });}
     console.error(e); return send(500, { error: 'Internal error' });
   }
 });
