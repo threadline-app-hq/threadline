@@ -61,3 +61,7 @@
 .ig .caption-limit{align-self:flex-end;font:10px/1.6 monospace;color:var(--mut);text-align:right}.ig .caption-limit.nearing{color:var(--fg);border-bottom:1px solid var(--fg)}
 
 .ig .dm-in{flex-wrap:wrap}.ig .message-help{flex:0 0 100%;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font:10px/1.5 monospace;color:var(--mut);overflow-wrap:anywhere}.ig .message-help>span{min-width:0}
+
+/* Ink tools lift from paper, without the old electric-blue glow. */
+.ig .primary:not(:disabled):hover{box-shadow:0 4px 0 color-mix(in srgb,var(--fg) 14%,transparent);transform:translateY(-2px)}.ig .primary:not(:disabled):active{box-shadow:0 1px 0 color-mix(in srgb,var(--fg) 14%,transparent);transform:translateY(1px) scale(.98)}.ig .ghost{transition:background 160ms,transform 240ms var(--spring)}.ig .ghost:hover{background:color-mix(in srgb,var(--soft) 72%,var(--line))}.ig .ghost:active{transform:scale(.98)}
+@media(prefers-reduced-motion:reduce){.ig .primary:not(:disabled):hover,.ig .primary:not(:disabled):active,.ig .ghost:active{transform:none}}
