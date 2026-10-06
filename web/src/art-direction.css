@@ -73,3 +73,6 @@
 /* Recent notes keep the directory's ink type and a ruled margin for new arrivals. */
 .ig .notif{border-radius:0;padding-inline:12px;border-left:2px solid transparent}.ig .notif.new{border-left-color:var(--blue);background:color-mix(in srgb,var(--blue) 5%,var(--bg))}.ig .notification-meta .person-name{font:400 23px/1.25 'Instrument Serif',Georgia,serif;letter-spacing:-.2px;text-align:left}.ig .notif .notification-copy>p{font-size:12px;line-height:1.75;margin-top:6px}.ig .notif .notification-copy .notification-comment{font-size:13px;border-left:1px solid var(--fg);padding-left:12px;color:var(--mut)}.ig:not(.dark) .notif.new .notification-comment,.ig:not(.dark) .notif.new small{color:var(--mut)}
 @media(max-width:700px){.ig .notification-meta .person-name{font-size:21px}.ig .notif{padding-inline:8px}}
+
+/* Confirmations are small stamped notes, without a floating-card shadow. */
+.ig .toast{border-radius:0;border:1px solid var(--line);border-left:3px solid var(--blue);box-shadow:none;padding:13px 20px;font:11px/1.6 monospace;letter-spacing:.15px;background:var(--fg);color:var(--bg)}
