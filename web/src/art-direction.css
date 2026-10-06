@@ -69,3 +69,7 @@
 /* Discovery results read like a small directory, not floating suggestion cards. */
 .ig .wide .sug.big{border-bottom:1px solid var(--line);padding:20px 0;margin-bottom:0;gap:16px;align-items:center}.ig .search-person .person-name{font:400 25px/1.2 'Instrument Serif',Georgia,serif;letter-spacing:-.25px;text-align:left}.ig .search-person>small{font-size:12px;line-height:1.6}.ig .search-person .search-followers{font:10px/1.6 monospace;color:var(--mut);margin-top:8px}.ig .wide .sug.big>.primary,.ig .wide .sug.big>.ghost{min-height:44px;border-radius:3px;font-size:11px}
 @media(max-width:700px){.ig .wide .sug.big{gap:12px;padding:18px 0}.ig .search-person .person-name{font-size:22px}}
+
+/* Recent notes keep the directory's ink type and a ruled margin for new arrivals. */
+.ig .notif{border-radius:0;padding-inline:12px;border-left:2px solid transparent}.ig .notif.new{border-left-color:var(--blue);background:color-mix(in srgb,var(--blue) 5%,var(--bg))}.ig .notification-meta .person-name{font:400 23px/1.25 'Instrument Serif',Georgia,serif;letter-spacing:-.2px;text-align:left}.ig .notif .notification-copy>p{font-size:12px;line-height:1.75;margin-top:6px}.ig .notif .notification-copy .notification-comment{font-size:13px;border-left:1px solid var(--fg);padding-left:12px;color:var(--mut)}.ig:not(.dark) .notif.new .notification-comment,.ig:not(.dark) .notif.new small{color:var(--mut)}
+@media(max-width:700px){.ig .notification-meta .person-name{font-size:21px}.ig .notif{padding-inline:8px}}
