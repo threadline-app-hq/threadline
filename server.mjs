@@ -88,11 +88,15 @@ setInterval(()=>{const now=Date.now();for(const[k,a]of hits){const recent=a.filt
 class HttpError extends Error { constructor(status, msg) { super(msg); this.status = status; } }
 const bad = (s, m) => { throw new HttpError(s, m); };
 
-const publicUser = async (u, me) => ({ id: u.id, handle: u.handle, name: u.name, bio: u.bio, avatar: u.avatar ? '/uploads/' + u.avatar : null,
-  followers: await count('SELECT COUNT(*) c FROM follows WHERE followee=$1', u.id),
-  following: await count('SELECT COUNT(*) c FROM follows WHERE follower=$1', u.id),
-  posts: await count('SELECT COUNT(*) c FROM posts WHERE user_id=$1', u.id),
-  followedByMe: me ? !!(await one('SELECT 1 x FROM follows WHERE follower=$1 AND followee=$2', me, u.id)) : false });
+const num = v => Number(Array.isArray(v) ? v[0] : v);
+const publicUser = async (u, me) => {
+  // one round trip: three counts + follow state (pg-mem wraps scalar subqueries in arrays, hence num())
+  const r = me
+    ? await one('SELECT (SELECT COUNT(*) FROM follows WHERE followee=$1) followers, (SELECT COUNT(*) FROM follows WHERE follower=$1) following, (SELECT COUNT(*) FROM posts WHERE user_id=$1) posts, EXISTS(SELECT 1 FROM follows WHERE follower=$2 AND followee=$1) fbm', u.id, me)
+    : await one('SELECT (SELECT COUNT(*) FROM follows WHERE followee=$1) followers, (SELECT COUNT(*) FROM follows WHERE follower=$1) following, (SELECT COUNT(*) FROM posts WHERE user_id=$1) posts', u.id);
+  return { id: u.id, handle: u.handle, name: u.name, bio: u.bio, avatar: u.avatar ? '/uploads/' + u.avatar : null,
+    followers: num(r.followers), following: num(r.following), posts: num(r.posts), followedByMe: me ? !!r.fbm : false };
+};
 const shapeAll = async (rows, me) => {
   if (!rows.length) return [];
   const ids = rows.map(r => Number(r.id)); const IN = ids.join(',');
@@ -101,11 +105,14 @@ const shapeAll = async (rows, me) => {
     q(`SELECT post_id FROM likes WHERE user_id=$1 AND post_id IN (${IN})`, me),
     q(`SELECT post_id FROM saves WHERE user_id=$1 AND post_id IN (${IN})`, me),
     q(`SELECT post_id, COUNT(*) c FROM comments WHERE post_id IN (${IN}) GROUP BY post_id`),
-    Promise.all(ids.map(id => q('SELECT c.id, c.text, c.created, u.handle FROM comments c JOIN users u ON u.id=c.user_id WHERE c.post_id=$1 ORDER BY c.created DESC, c.id DESC LIMIT 3', id))),
+    q(`SELECT c.post_id, c.id, c.text, c.created, u.handle FROM comments c JOIN users u ON u.id=c.user_id WHERE c.post_id IN (${IN}) ORDER BY c.post_id, c.created DESC, c.id DESC`), // one round trip; capped to 3 newest per post below (pg-mem lacks window fns/LATERAL; round trips dominate on pooled PG)
   ]);
   const m = (a) => new Map(a.map(x => [x.post_id, Number(x.c)])); const L = m(lc), C = m(cc), M = new Set(mine.map(x => x.post_id)), S = new Set(sv.map(x => x.post_id));
-  return rows.map((p, i) => ({ id: p.id, image: '/uploads/' + p.image, width: p.width ?? null, height: p.height ?? null, caption: p.caption, created: p.created, user: { id: p.user_id, handle: p.handle, name: p.name, avatar: p.avatar ? '/uploads/' + p.avatar : null },
-    likes: L.get(p.id) || 0, liked: M.has(p.id), saved: S.has(p.id), commentCount: C.get(p.id) || 0, comments: cm[i].reverse() }));
+  const previews = new Map();
+  for (const c of cm) { const k = Number(c.post_id); let g = previews.get(k); if (!g) previews.set(k, g = []); if (g.length < 3) g.push({ id: c.id, text: c.text, created: c.created, handle: c.handle }); }
+  for (const g of previews.values()) g.reverse(); // newest-3 in ascending order, as before
+  return rows.map((p) => ({ id: p.id, image: '/uploads/' + p.image, width: p.width ?? null, height: p.height ?? null, caption: p.caption, created: p.created, user: { id: p.user_id, handle: p.handle, name: p.name, avatar: p.avatar ? '/uploads/' + p.avatar : null },
+    likes: L.get(p.id) || 0, liked: M.has(p.id), saved: S.has(p.id), commentCount: C.get(p.id) || 0, comments: previews.get(Number(p.id)) || [] }));
 };
 const shapePost = async (p, me) => (await shapeAll([p], me))[0];
 const notify = (to, actor, type, post, text = '') => to === actor ? null : run('INSERT INTO notifications(user_id,actor,type,post_id,text,created) VALUES($1,$2,$3,$4,$5,$6)', to, actor, type, post, text.slice(0, 120), Date.now()).catch(() => {});
