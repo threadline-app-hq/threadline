@@ -376,3 +376,8 @@ html,body{background:#f6f3ed}
 
 @media(max-width:700px){.dm{height:calc(100dvh - var(--tl-header-height,56px) - 10px - var(--tl-nav-height,76px))}html{scroll-padding-top:calc(var(--tl-header-height,56px) + 8px)}}
 @media(max-width:700px){.dm{min-height:160px}}
+
+/* Small, anchored action confirmations. The button stays mounted for focus. */
+.actions .save-pulse svg{animation:save-settle 280ms var(--ease)}
+@keyframes save-settle{0%{transform:translateY(0) scale(1)}35%{transform:translateY(-2px) scale(1.08)}70%{transform:translateY(1px) scale(.99)}100%{transform:none}}
+@media(prefers-reduced-motion:reduce){.actions .save-pulse svg{animation:none!important}}
