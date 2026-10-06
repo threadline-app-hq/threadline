@@ -187,6 +187,7 @@ route('POST', '/api/auth/login', false, async ({ body, ip }) => {
   if (!await checkPw(String(body.password || ''), u.pw)) bad(401, 'Wrong handle or password');
   return { data: { token: sign(u.id,u.session_version), user: await publicUser(u, u.id) } };
 });
+route('GET','/api/features',true,async()=>({data:{reels:!!process.env.YOUTUBE_API_KEY}}));
 route('GET', '/api/me', true, async ({ me }) => ({ data: await publicUser(await one('SELECT * FROM users WHERE id=$1', me), me) }));
 route('PATCH', '/api/me', true, async ({ me, body }) => {
   let avatarKey = null;

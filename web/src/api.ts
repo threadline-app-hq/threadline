@@ -31,6 +31,7 @@ export const api = {
   reset: (handle: string, code: string, password: string) => call<{ token: string; user: User; recoveryCode: string }>('POST', '/api/auth/reset', { handle, code, password }),
   newRecovery: (password: string) => call<{ recoveryCode: string }>('POST', '/api/auth/recovery-code', { password }),
   login: (handle: string, password: string) => call<{ token: string; user: User }>('POST', '/api/auth/login', { handle, password }),
+  features:()=>call<{reels:boolean}>('GET','/api/features'),
   me: () => call<User>('GET', '/api/me'),
   developerKeys:()=>call<{keys:DeveloperKey[]}>('GET','/api/developer/keys'),
   createKey:(name:string)=>call<DeveloperKey&{key:string;notice:string}>('POST','/api/developer/keys',{name}),
