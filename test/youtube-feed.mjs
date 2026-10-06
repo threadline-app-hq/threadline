@@ -11,3 +11,6 @@ await assert.rejects(()=>createYouTubeFeed({key:''})(),e=>e.status===503);
 await assert.rejects(()=>createYouTubeFeed({key:'x',fetcher:async()=>new Response('',{status:403})})(),e=>e.status===503);
 await assert.rejects(()=>createYouTubeFeed({key:'x',fetcher:async()=>{throw new Error('network');}})(),e=>e.status===503);
 console.log('YouTube discovery: bounded cache/budget, concurrent collapse, strict filters, cursor validation, key not disclosed, safe error states: passed');
+
+let release;const gate=new Promise(r=>release=r);const bounded=createYouTubeFeed({key:'x',fetcher:async()=>{await gate;return new Response(JSON.stringify({items:[]}));}});const pending=['a','b','c','d'].map(c=>bounded(c));await assert.rejects(()=>bounded('e'),e=>e.status===503&&e.message.includes('busy'));release();await Promise.all(pending);
+let clock=Date.parse('2026-10-06T06:59:59Z');const daily=createYouTubeFeed({key:'x',maxSearches:1,now:()=>clock,fetcher:async()=>new Response(JSON.stringify({items:[]}))});await daily();await assert.rejects(()=>daily('NEXT'),e=>e.status===503);clock+=2000;await daily('NEXT');console.log('Discovery concurrency cap and Pacific-midnight quota reset: passed');

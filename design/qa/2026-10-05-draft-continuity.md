@@ -179,3 +179,8 @@ Oct6 00:05 Publishedb2d6dda app-only main. Render dep-db29qn6k1f9s739m9090 succe
 - Ran developer schema/queries and concurrent request/key caps under PGlite's PostgreSQL engine in a disposable `/tmp` test environment, not only pg-mem. All passed, including reset invalidation. No production DB touched; this single local engine isn't proof of deployed multi-server timing/performance.
 - Enlarged nav/chrome/header/nav-safe and keyboard tests pass in Chromium/WebKit: 200%labels, shortlandscape,360pxkeyboard, simulatedsafearea retain actions and unrestrictedaxe.
 - Full security/smoke/typecheck rerun pass after conditional session insert.
+
+## Oct6 05:17 discovery and pagination audit
+- Bound concurrent unique discovery cursors to4 and recheck20-page cache cap at completion, so simultaneous pages cannot burst retained cache. Pacific-midnight budget-reset and concurrency-cap tests pass.
+- Chromium/WebKit pagination regression: duplicatevideoIDs deduped; repeated providercursor stops; atmost1playerafter swipe; navigation destroysiframe. Mocked test only, no liveYouTube claim.
+- Fullsecurity suite rerun passes. Original temporarytokenperpush/revoke question and ownerSure independently recovered from Oct5 00:44 phoneconversation; no tokencreated/pushmade thisrun.

@@ -28,9 +28,10 @@ export function createYouTubeFeed({key=process.env.YOUTUBE_API_KEY||'',fetcher=f
     if(typeof cursor!=='string'||(cursor&&!token.test(cursor)))bad(400,'Invalid video cursor');
     const old=cache.get(cursor);if(old&&old.expires>now())return old.value;
     if(inFlight.has(cursor))return inFlight.get(cursor);
+    if(inFlight.size>=4)bad(503,'Video discovery is busy. Try again shortly.');
     // Bound retained cursor pages. Never return stale data past TTL.
     for(const[k,v]of cache)if(v.expires<=now())cache.delete(k);
     if(cache.size>=20)cache.delete(cache.keys().next().value);
-    const task=load(cursor).then(value=>{cache.set(cursor,{expires:now()+ttl,value});return value;}).finally(()=>inFlight.delete(cursor));inFlight.set(cursor,task);return task;
+    const task=load(cursor).then(value=>{if(cache.size>=20&&!cache.has(cursor))cache.delete(cache.keys().next().value);cache.set(cursor,{expires:now()+ttl,value});return value;}).finally(()=>inFlight.delete(cursor));inFlight.set(cursor,task);return task;
   };
 }
