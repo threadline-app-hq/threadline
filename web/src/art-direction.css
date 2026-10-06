@@ -54,3 +54,6 @@
 @keyframes journal-sheet{0%{opacity:0;transform:translateY(18px) scale(.99)}65%{opacity:1;transform:translateY(-2px) scale(1)}100%{opacity:1;transform:none}}
 @keyframes journal-darkroom{0%{opacity:0;transform:translateY(10px)}70%{opacity:1;transform:translateY(-1px)}100%{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.ig .scrim:not(.closing)>.modal,.ig .sv:not(.closing)>.sv-card{animation:none!important}}
+
+/* Older pages arrive at a quiet, named seam in the journal. */
+.ig .pagination-status{display:flex;align-items:center;justify-content:center;gap:12px;border-top:1px solid var(--line);padding:20px 0;width:100%;font:10px/1.6 monospace;color:var(--mut);overflow-wrap:anywhere}.ig .pagination-status .spinner{width:20px;height:20px;border-width:2px;flex-shrink:0}.ig .pagination-status>span:last-child{min-width:0}

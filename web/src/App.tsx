@@ -225,7 +225,7 @@ function StoryViewer({groups,start,onClose,me,onDeleted}:{groups:StoryGroup[];st
 function More({ on, busy, onVisible }: { on: boolean; busy: boolean; onVisible: () => void }) {
   const ref = useRef<HTMLDivElement>(null); const cb = useRef(onVisible); cb.current = onVisible;
   useEffect(() => { const el = ref.current; if (!el || !on) return; const o = new IntersectionObserver(([e]) => { if(e.isIntersecting&&!busy)cb.current(); }, { rootMargin: '600px' }); o.observe(el); return () => o.disconnect(); }, [on, busy]);
-  return on ? <div ref={ref} className="more">{busy && <span className="spinner" />}</div> : null;
+  return on ? <div ref={ref} className="more">{busy && <span className="pagination-status" role="status"><span className="spinner" aria-hidden="true"/><span>Loading more photographs…</span></span>}</div> : null;
 }
 function EditProfile({ me, onClose, onSaved }: { me: User; onClose: () => void; onSaved: (u: User) => void }) {
   const bioId=useId();const[copied,setCopied]=useState(false);const[copying,setCopying]=useState(false);const copyOperation=useRef(0);const copyLock=useRef(false);useEffect(()=>()=>{copyOperation.current++;},[]);
