@@ -99,3 +99,7 @@
 @media(max-width:480px){.ig .search-error{display:block}.ig .search-error .ghost{margin-top:2px}}
 .ig .page>.load-error{margin:24px 28px}
 @media(max-width:700px){.ig .page>.load-error{margin:24px 20px}}
+
+/* A missing photograph keeps its place as an unprinted frame. */
+.ig .media-error{background:var(--surface);border:1px solid var(--line);outline:1px solid var(--line);outline-offset:-10px;gap:20px;padding:32px;text-align:center}.ig .media-error p{font:400 28px/1.2 'Instrument Serif',Georgia,serif;letter-spacing:-.4px;max-width:240px}.ig .media-error .ghost{font:11px/1.6 monospace;border-radius:3px;min-height:44px;padding:10px 16px}
+.ig .grid-failed{border:1px solid var(--line);background:var(--surface);padding:14px;gap:12px}.ig .grid-failed small{font:11px/1.6 monospace;letter-spacing:0}
