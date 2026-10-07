@@ -84,3 +84,8 @@
 
 /* Touch has a press, never a sticky hover lift. */
 @media(hover:none){.ig .primary:not(:disabled):hover{transform:none;box-shadow:var(--control-shadow)}.ig .ghost:hover{background:var(--soft)}}
+
+/* A chosen photograph develops in place, without changing its crop or size. */
+.ig .create .drop.has img{animation:photograph-develop 260ms cubic-bezier(.2,.8,.2,1) both}
+@keyframes photograph-develop{from{opacity:.25;filter:brightness(.88)}to{opacity:1;filter:none}}
+@media(prefers-reduced-motion:reduce){.ig .create .drop.has img{animation:none!important}}
