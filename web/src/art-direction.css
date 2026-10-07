@@ -89,3 +89,6 @@
 .ig .create .drop.has img{animation:photograph-develop 260ms cubic-bezier(.2,.8,.2,1) both}
 @keyframes photograph-develop{from{opacity:.25;filter:brightness(.88)}to{opacity:1;filter:none}}
 @media(prefers-reduced-motion:reduce){.ig .create .drop.has img{animation:none!important}}
+
+/* Waiting photographs are ruled paper, not rounded dashboard placeholders. */
+.ig .sk{border-bottom:1px solid var(--line);padding-bottom:22px;margin-bottom:34px}.ig .sk-h{padding:20px 0 16px;gap:12px}.ig .sk-h b,.ig .sk-l{border-radius:0;height:9px}.ig .sk-m{border-radius:0;border:1px solid var(--line)}.ig .sk-l{margin-top:18px;width:44%}
