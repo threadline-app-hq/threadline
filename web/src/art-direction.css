@@ -92,3 +92,10 @@
 
 /* Waiting photographs are ruled paper, not rounded dashboard placeholders. */
 .ig .sk{border-bottom:1px solid var(--line);padding-bottom:22px;margin-bottom:34px}.ig .sk-h{padding:20px 0 16px;gap:12px}.ig .sk-h b,.ig .sk-l{border-radius:0;height:9px}.ig .sk-m{border-radius:0;border:1px solid var(--line)}.ig .sk-l{margin-top:18px;width:44%}
+
+/* Retry notices stay in the journal margin, with a clear local action. */
+.ig .load-error,.ig .search-error{border:0;border-left:2px solid #b83345;border-radius:0;background:var(--surface);padding:20px 22px;margin:24px 0;box-shadow:none}.ig .load-error p,.ig .search-error p{font-size:12px;line-height:1.8;margin:0 0 14px}.ig .load-error .ghost,.ig .search-error .ghost{font:11px/1.6 monospace;border-radius:3px;min-height:44px;padding:10px 16px;max-width:100%;white-space:normal}
+@media(max-width:700px){.ig .load-error,.ig .search-error{padding:18px 16px}}
+@media(max-width:480px){.ig .search-error{display:block}.ig .search-error .ghost{margin-top:2px}}
+.ig .page>.load-error{margin:24px 28px}
+@media(max-width:700px){.ig .page>.load-error{margin:24px 20px}}
