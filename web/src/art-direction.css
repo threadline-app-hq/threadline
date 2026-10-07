@@ -81,3 +81,6 @@
 .ig .grid .hover{inset:auto 0 0;background:#292d25;color:#fffdf8;padding:10px 6px;min-height:36px;align-items:center;justify-content:center;gap:6px;font:10px/1.5 monospace;transform:translateY(6px);transition:opacity 160ms,transform 240ms var(--spring)}.ig .grid .hover svg{width:14px;height:14px;margin-left:4px;flex-shrink:0}.ig .grid button:hover .hover,.ig .grid button:focus-visible .hover{transform:none}.ig .grid button:after{transition:opacity 160ms}.ig .grid button:hover:after,.ig .grid button:focus-visible:after{opacity:0}
 @media(hover:none){.ig .grid button:hover:after{opacity:1}.ig .grid button:focus-visible:after{opacity:0}}
 @media(prefers-reduced-motion:reduce){.ig .grid .hover{transform:none;transition:none}.ig .grid button:after{transition:none}}
+
+/* Touch has a press, never a sticky hover lift. */
+@media(hover:none){.ig .primary:not(:disabled):hover{transform:none;box-shadow:var(--control-shadow)}.ig .ghost:hover{background:var(--soft)}}
