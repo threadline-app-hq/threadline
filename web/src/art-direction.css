@@ -76,3 +76,8 @@
 
 /* Confirmations are small stamped notes, without a floating-card shadow. */
 .ig .toast{border-radius:0;border:1px solid var(--line);border-left:3px solid var(--blue);box-shadow:none;padding:13px 20px;font:11px/1.6 monospace;letter-spacing:.15px;background:var(--fg);color:var(--bg)}
+
+/* Contact-sheet metadata sits on an ink strip; the photograph stays still. */
+.ig .grid .hover{inset:auto 0 0;background:#292d25;color:#fffdf8;padding:10px 6px;min-height:36px;align-items:center;justify-content:center;gap:6px;font:10px/1.5 monospace;transform:translateY(6px);transition:opacity 160ms,transform 240ms var(--spring)}.ig .grid .hover svg{width:14px;height:14px;margin-left:4px;flex-shrink:0}.ig .grid button:hover .hover,.ig .grid button:focus-visible .hover{transform:none}.ig .grid button:after{transition:opacity 160ms}.ig .grid button:hover:after,.ig .grid button:focus-visible:after{opacity:0}
+@media(hover:none){.ig .grid button:hover:after{opacity:1}.ig .grid button:focus-visible:after{opacity:0}}
+@media(prefers-reduced-motion:reduce){.ig .grid .hover{transform:none;transition:none}.ig .grid button:after{transition:none}}
